@@ -1,4 +1,4 @@
-# app.py
+# app.py (fixed)
 # =============================
 # GENERAL STREAMLIT DASHBOARD
 # Replace the placeholder functions with your own logic.
@@ -89,6 +89,17 @@ def generate_plan(design, width=800, height=500):
         })
     design.plan = plan
     return plan
+
+def render_svg_plan(plan, width=800, height=500):
+    """Render plan as inline SVG (moved up to avoid NameError)."""
+    svg = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" style="width:100%; background:#0f172a;">'
+    for item in plan:
+        x, y, w, h = item["x"], item["y"], item["w"], item["h"]
+        color = item.get("color", "#4f46e5")
+        svg += f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="{color}" fill-opacity="0.4" stroke="#94a3b8" stroke-width="2"/>'
+        svg += f'<text x="{x+w/2}" y="{y+h/2}" font-size="12" fill="white" text-anchor="middle" dominant-baseline="middle">{item["name"]}</text>'
+    svg += '</svg>'
+    return svg
 
 def run_evolutionary_loop(typology, generations, pop_size, config):
     """Simulated optimisation. Replace with your actual algorithm."""
@@ -246,7 +257,7 @@ elif page == "Design Lab":
 
         tab1, tab2, tab3 = st.tabs(["Plan", "Metrics", "Convergence"])
         with tab1:
-            svg = render_svg_plan(design.plan)
+            svg = render_svg_plan(design.plan)   # NOW DEFINED ABOVE
             st.markdown(f'<div style="background:#0f172a; border-radius:12px; padding:8px;">{svg}</div>',
                         unsafe_allow_html=True)
         with tab2:
@@ -272,17 +283,6 @@ else:
         st.session_state.active_history = []
         save_memory()
         st.rerun()
-
-# ---------- SVG Renderer (generic) ----------
-def render_svg_plan(plan, width=800, height=500):
-    svg = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" style="width:100%; background:#0f172a;">'
-    for item in plan:
-        x, y, w, h = item["x"], item["y"], item["w"], item["h"]
-        color = item.get("color", "#4f46e5")
-        svg += f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="{color}" fill-opacity="0.4" stroke="#94a3b8" stroke-width="2"/>'
-        svg += f'<text x="{x+w/2}" y="{y+h/2}" font-size="12" fill="white" text-anchor="middle" dominant-baseline="middle">{item["name"]}</text>'
-    svg += '</svg>'
-    return svg
 
 if __name__ == "__main__":
     pass
