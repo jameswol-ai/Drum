@@ -763,7 +763,7 @@ with col_btn1:
 # VIEWPORT: MEMORY REPOSITORIES
 # =========================================================
 
-elif page == "Memory Repositories"
+#elif page == "Memory Repositories"
     st.title("🧠 Engine Serialized Memory Cache")
     st.markdown("Review system variables and system architectural metadata arrays.")
     st.subheader("Raw Memory Store Model State")
