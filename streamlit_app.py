@@ -793,3 +793,19 @@ st.download_button(
     file_name=f"rooms_{design['id']}.json",
     mime="application/json"
 )
+
+with st.sidebar.expander("📚 Design History", expanded=False):
+    if mem["designs"]:
+        ids = [d["id"] for d in mem["designs"]]
+        selected_id = st.selectbox("Load a previous design", ["None"] + ids)
+        if selected_id != "None":
+            design_to_load = next(d for d in mem["designs"] if d["id"] == selected_id)
+            if st.button("↩️ Restore Design"):
+                st.session_state.active_design = design_to_load
+                # regenerate plan if not present (backwards compat)
+                if "plan" not in design_to_load:
+                    design_to_load["plan"] = generate_floor_plan_ai(design_to_load, 800, 500)
+                st.session_state.active_history = []   # no convergence chart for old designs
+                st.rerun()
+    else:
+        st.caption("No designs yet.")
