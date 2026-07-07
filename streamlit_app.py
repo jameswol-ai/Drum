@@ -303,9 +303,20 @@ def calculate_fitness(d, config):
         "spatial_complexity": int(complexity_score * weights["complexity"])
     }
 
-def calculate_aggregate_score(fit_dict):
-    return int(sum(fit_dict.values()) / len(fit_dict))
-
+def calculate_aggregate_score(fit_dict, weights):
+    """Weighted sum of sub-scores, normalised to 0-100."""
+    struct = fit_dict["structural_integrity"]
+    cost   = fit_dict["cost_efficiency"]
+    compl  = fit_dict["spatial_complexity"]
+    w_s    = weights["structural"]
+    w_c    = weights["cost"]
+    w_x    = weights["complexity"]
+    total_weight = w_s + w_c + w_x
+    if total_weight == 0:
+        return 0
+    # theoretical max each sub-score is 100
+    weighted_avg = (struct*w_s + cost*w_c + compl*w_x) / total_weight
+    return int(weighted_avg)
 def run_evolutionary_loop(btype, bedrooms, generations, pop_size, config):
     population = [generate_base_design(btype, bedrooms) for _ in range(pop_size)]
     history = []
