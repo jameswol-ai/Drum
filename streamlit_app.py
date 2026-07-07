@@ -18,63 +18,249 @@ from datetime import datetime
 st.set_page_config(
     page_title="Arc Studio Engine",
     page_icon="📐",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
 MEMORY_FILE = Path("arc_memory.json")
 
-# Custom Architectural Studio UI Skin
+# ---------------------------------------------------------
+# Custom Architectural Studio UI Skin – Enhanced Aesthetic
+# ---------------------------------------------------------
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600&family=Syne:wght@500;700;800&display=swap');
 
-/* Global Overrides */
-html, body, [data-testid="stSidebarNav"] {
-font-family: 'Plus Jakarta Sans', sans-serif;
-}
+    /* ---------- Global Overrides ---------- */
+    html, body, [data-testid="stSidebarNav"], .stApp {
+        font-family: 'Inter', sans-serif;
+        background: #0b0f19;
+        color: #e2e8f0;
+    }
 
-h1, h2, h3, h4, h5, h6 {
-font-family: 'Space Grotesk', sans-serif;
-font-weight: 700;
-letter-spacing: -0.03em;
-}
+    h1, h2, h3, h4, h5, h6 {
+        font-family: 'Syne', sans-serif;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: #f1f5f9;
+    }
 
-/* Core Architectural Spatial Grid */
-.arc-blueprint-canvas {
-display: flex;
-flex-wrap: wrap;
-gap: 16px;
-background: #090d16;
-padding: 24px;
-border-radius: 12px;
-border: 1px dashed #334155;
-margin: 15px 0;
-}
+    /* ---------- Sidebar Glass Panel ---------- */
+    section[data-testid="stSidebar"] {
+        background: linear-gradient(145deg, rgba(15,23,42,0.95) 0%, rgba(12,18,30,0.98) 100%);
+        backdrop-filter: blur(20px);
+        border-right: 1px solid rgba(148, 163, 184, 0.15);
+        box-shadow: 4px 0 30px rgba(0,0,0,0.5);
+    }
 
-.arc-room-module {
-flex: 1 1 calc(33.333% - 16px);
-min-width: 220px;
-padding: 20px;
-border-radius: 8px;
-color: #ffffff;
-border: 1px solid rgba(255, 255, 255, 0.12);
-box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
-transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
+    section[data-testid="stSidebar"] .stMarkdown, 
+    section[data-testid="stSidebar"] .stSelectbox label, 
+    section[data-testid="stSidebar"] .stSlider label {
+        color: #cbd5e1;
+    }
 
-.arc-room-module:hover {
-transform: translateY(-3px);
-border-color: rgba(255, 255, 255, 0.3);
-box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
-}
+    /* Sidebar title & caption */
+    section[data-testid="stSidebar"] h1 {
+        background: linear-gradient(135deg, #7c3aed, #2563eb);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-weight: 800;
+    }
 
-.room-meta {
-font-family: 'Space Grotesk', monospace;
-font-size: 0.85rem;
-letter-spacing: 0.05em;
-opacity: 0.8;
-margin-top: 8px;
-}
+    /* ---------- Buttons ---------- */
+    .stButton > button {
+        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        padding: 0.6rem 1.8rem;
+        font-weight: 600;
+        font-family: 'Syne', sans-serif;
+        letter-spacing: 0.5px;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(79, 70, 229, 0.4);
+    }
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(124, 58, 237, 0.6);
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    }
+    .stButton > button:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 8px rgba(79, 70, 229, 0.5);
+    }
+
+    /* Danger button (memory purge) */
+    .stButton > button[kind="secondary"] {
+        background: linear-gradient(135deg, #b91c1c 0%, #dc2626 100%);
+        box-shadow: 0 4px 15px rgba(220, 38, 38, 0.4);
+    }
+    .stButton > button[kind="secondary"]:hover {
+        background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+        box-shadow: 0 6px 20px rgba(239, 68, 68, 0.6);
+    }
+
+    /* ---------- Metrics Cards ---------- */
+    div[data-testid="stMetric"] {
+        background: rgba(255, 255, 255, 0.03);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(148, 163, 184, 0.15);
+        border-radius: 12px;
+        padding: 1rem;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+        transition: transform 0.2s ease;
+    }
+    div[data-testid="stMetric"]:hover {
+        transform: scale(1.02);
+        border-color: rgba(148, 163, 184, 0.3);
+    }
+    div[data-testid="stMetric"] label {
+        color: #94a3b8 !important;
+        font-family: 'Inter', sans-serif;
+        font-weight: 500;
+    }
+    div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
+        color: #f8fafc;
+        font-family: 'Syne', sans-serif;
+        font-weight: 700;
+    }
+
+    /* ---------- Tabs ---------- */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0.5rem;
+        background: rgba(15, 23, 42, 0.6);
+        border-radius: 12px;
+        padding: 4px;
+        backdrop-filter: blur(10px);
+    }
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 8px;
+        padding: 0.6rem 1.5rem;
+        font-weight: 600;
+        font-family: 'Syne', sans-serif;
+        color: #94a3b8;
+        transition: all 0.2s;
+    }
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #4f46e5, #7c3aed);
+        color: white !important;
+        box-shadow: 0 2px 12px rgba(79, 70, 229, 0.4);
+    }
+
+    /* ---------- Blueprint Canvas ---------- */
+    .arc-blueprint-canvas {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.2rem;
+        background: rgba(9, 13, 22, 0.7);
+        backdrop-filter: blur(16px);
+        padding: 2rem;
+        border-radius: 16px;
+        border: 1px solid rgba(148, 163, 184, 0.15);
+        margin: 1rem 0;
+    }
+
+    .arc-room-module {
+        flex: 1 1 calc(33.333% - 1.2rem);
+        min-width: 200px;
+        padding: 1.5rem 1.5rem 1.2rem;
+        border-radius: 12px;
+        color: #ffffff;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: linear-gradient(135deg, rgba(30, 41, 59, 0.6), rgba(15, 23, 42, 0.7));
+        backdrop-filter: blur(8px);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+        transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+    }
+    .arc-room-module::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 4px;
+        background: linear-gradient(90deg, var(--room-color), rgba(255,255,255,0.2));
+        opacity: 0.6;
+    }
+    .arc-room-module:hover {
+        transform: translateY(-6px);
+        border-color: rgba(255, 255, 255, 0.25);
+        box-shadow: 0 20px 35px rgba(0, 0, 0, 0.6);
+    }
+    .room-meta {
+        font-family: 'Inter', monospace;
+        font-size: 0.8rem;
+        letter-spacing: 0.03em;
+        opacity: 0.7;
+        margin-top: 0.8rem;
+    }
+    .room-name {
+        font-family: 'Syne', sans-serif;
+        font-size: 1.1rem;
+        font-weight: 700;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
+
+    /* ---------- Data Tables (Takeoffs) ---------- */
+    .stTable {
+        background: rgba(15, 23, 42, 0.5);
+        backdrop-filter: blur(12px);
+        border-radius: 12px;
+        border: 1px solid rgba(148, 163, 184, 0.1);
+    }
+    .stTable th {
+        background: rgba(79, 70, 229, 0.15);
+        color: #cbd5e1;
+        font-family: 'Syne', sans-serif;
+        font-weight: 600;
+    }
+    .stTable td {
+        color: #e2e8f0;
+    }
+
+    /* ---------- Alerts (Structural Diagnostics) ---------- */
+    .stMarkdown .alert {
+        border-radius: 8px;
+        padding: 0.6rem 1rem;
+        margin: 0.3rem 0;
+        backdrop-filter: blur(8px);
+        border-left: 4px solid;
+    }
+    .alert-warning {
+        background: rgba(234, 179, 8, 0.1);
+        border-left-color: #eab308;
+        color: #fef08a;
+    }
+    .alert-danger {
+        background: rgba(239, 68, 68, 0.1);
+        border-left-color: #ef4444;
+        color: #fca5a5;
+    }
+    .alert-info {
+        background: rgba(59, 130, 246, 0.1);
+        border-left-color: #3b82f6;
+        color: #93c5fd;
+    }
+    .alert-success {
+        background: rgba(34, 197, 94, 0.1);
+        border-left-color: #22c55e;
+        color: #86efac;
+    }
+
+    /* ---------- Scrollbar ---------- */
+    ::-webkit-scrollbar {
+        width: 8px;
+        background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+        background: #334155;
+        border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+        background: #475569;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -233,22 +419,19 @@ def generate_floor_plan(design):
     return rooms
 
 # =========================================================
-# GRAPHICS CANVAS RENDERING ENGINE
+# GRAPHICS CANVAS RENDERING ENGINE (Enhanced)
 # =========================================================
 
 def render_native_blueprint(plan):
     st.markdown("### 🗺️ Generative Layout Arrangement")
-
     canvas_html = '<div class="arc-blueprint-canvas">'
-
     for room in plan:
         canvas_html += (
-            f'<div class="arc-room-module" style="background-color: {room["color"]};">'
-            f'<div style="font-size: 1.15rem; font-weight: 600;">{room["name"]}</div>'
+            f'<div class="arc-room-module" style="--room-color: {room["color"]}; background: linear-gradient(135deg, {room["color"]}dd, {room["color"]}44);">'
+            f'<div class="room-name">{room["name"]}</div>'
             f'<div class="room-meta">📐 {room["w"]}m × {room["h"]}m Structural Deck</div>'
             f'</div>'
         )
-
     canvas_html += '</div>'
     st.markdown(canvas_html, unsafe_allow_html=True)
 
@@ -258,17 +441,15 @@ def render_native_blueprint(plan):
 
 def run_structural_review(d):
     alerts = []
-
     if d["structure"]["columns"] < 16:
-        alerts.append("🔴 Structural Warning: Column distribution density thin for structural load transfers.")
-
+        alerts.append(("danger", "🔴 Structural Warning: Column distribution density thin for structural load transfers."))
     if d["cost"] / d["area_sqm"] > 2300:
-        alerts.append("🟡 Financial Alert: Material pricing model trending toward architectural premium thresholds.")
-
+        alerts.append(("warning", "🟡 Financial Alert: Material pricing model trending toward architectural premium thresholds."))
     if d["structure"]["beams"] / d["structure"]["columns"] < 1.9:
-        alerts.append("🔵 Framing Optimization: Tight structural beam-to-column ratio; review spatial continuity maps.")
-
-    return alerts if alerts else ["🟢 Synthesis Checked: Structural logic matrices clear. Design optimized for construction documentation."]
+        alerts.append(("info", "🔵 Framing Optimization: Tight structural beam-to-column ratio; review spatial continuity maps."))
+    if not alerts:
+        alerts.append(("success", "🟢 Synthesis Checked: Structural logic matrices clear. Design optimized for construction documentation."))
+    return alerts
 
 def calculate_material_takeoffs(d):
     return [
@@ -288,7 +469,8 @@ st.sidebar.markdown("---")
 
 page = st.sidebar.radio(
     "Studio Workspace",
-    ["Dashboard Control", "Design Synthesis Lab", "Memory Repositories"]
+    ["Dashboard Control", "Design Synthesis Lab", "Memory Repositories"],
+    index=1  # default to Synthesis Lab for quick access
 )
 
 st.sidebar.markdown("---")
@@ -336,7 +518,7 @@ elif page == "Design Synthesis Lab":
     st.markdown("Manipulate generative presets inside the sidebar config block to modify systemic architectural constraints.")
 
     generate_now = st.button(
-        "Run Generative Architectural Evolution Pipeline",
+        "▶ Run Generative Architectural Evolution Pipeline",
         type="primary",
         use_container_width=True
     )
@@ -387,8 +569,9 @@ elif page == "Design Synthesis Lab":
 
         with tab_metrics:
             st.subheader("AI Structural Diagnostics")
-            for alert in run_structural_review(design):
-                st.markdown(alert)
+            for level, msg in run_structural_review(design):
+                # Render styled alerts
+                st.markdown(f'<div class="alert alert-{level}">{msg}</div>', unsafe_allow_html=True)
 
             st.markdown("---")
             st.subheader("Material Quantum Requirements")
