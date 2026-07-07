@@ -8,7 +8,6 @@
 import streamlit as st
 import math
 import random
-import plotly.graph_objects as go
 import numpy as np
 import requests
 import base64
