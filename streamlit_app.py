@@ -6,6 +6,7 @@
 
 import streamlit as st
 import math
+import plotly.graph_objects as go          # <-- Fixed: missing import
 
 # ---------- Page config MUST be first Streamlit command ----------
 st.set_page_config(page_title="AEC/MEP Studio", page_icon="🏗️", layout="wide")
@@ -36,12 +37,10 @@ def generate_building(building_type, floors, area_per_floor, rooms_per_floor, hv
     }
 
     for f in range(floors):
-        # Rectangular floor plan (square root of area)
         side = math.sqrt(area_per_floor)
         width = side
         depth = side
 
-        # Subdivide into rooms (approximate grid)
         cols = math.ceil(math.sqrt(rooms_per_floor))
         rows = math.ceil(rooms_per_floor / cols)
         cell_w = width / cols
@@ -53,7 +52,6 @@ def generate_building(building_type, floors, area_per_floor, rooms_per_floor, hv
             for c in range(cols):
                 if room_counter >= rooms_per_floor:
                     break
-                # Assign room type based on building type and position
                 if building_type == "Office":
                     room_type = "Open Office" if c % 2 == 0 else "Meeting Room"
                 elif building_type == "Residential":
@@ -71,9 +69,7 @@ def generate_building(building_type, floors, area_per_floor, rooms_per_floor, hv
                 })
                 room_counter += 1
 
-        # MEP/HVAC zones (simplified)
         mep_zones = []
-        # Main duct along the centre corridor
         corridor_x = width / 2 - 0.5
         mep_zones.append({
             "type": "HVAC Duct",
@@ -82,7 +78,6 @@ def generate_building(building_type, floors, area_per_floor, rooms_per_floor, hv
                 "size": 0.4
             }
         })
-        # Branch ducts to each room
         for room in rooms:
             cx = room["x"] + room["width"] / 2
             cy = room["y"] + room["depth"] / 2
@@ -107,15 +102,13 @@ def generate_building(building_type, floors, area_per_floor, rooms_per_floor, hv
 
 # ---------- 2D SVG Renderer ----------
 def render_2d_floor(floor_data):
-    w = floor_data["width"] * 50   # 1 m = 50 px
+    w = floor_data["width"] * 50
     d = floor_data["depth"] * 50
     svg = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {d}" style="background:#0f172a; width:100%; height:auto;">'
-    # Grid
     for x in range(0, int(w), 50):
         svg += f'<line x1="{x}" y1="0" x2="{x}" y2="{d}" stroke="#1e293b" stroke-width="0.5"/>'
     for y in range(0, int(d), 50):
         svg += f'<line x1="0" y1="{y}" x2="{w}" y2="{y}" stroke="#1e293b" stroke-width="0.5"/>'
-    # Rooms
     for room in floor_data["rooms"]:
         rx = room["x"] * 50
         ry = room["y"] * 50
@@ -127,7 +120,6 @@ def render_2d_floor(floor_data):
         }.get(room["type"], "#334155")
         svg += f'<rect x="{rx}" y="{ry}" width="{rw}" height="{rd}" fill="{color}" fill-opacity="0.3" stroke="#94a3b8" stroke-width="2"/>'
         svg += f'<text x="{rx+rw/2}" y="{ry+rd/2}" font-size="10" fill="white" text-anchor="middle" dominant-baseline="middle">{room["name"]}</text>'
-    # MEP ducts (dashed lines)
     for zone in floor_data["mep_zones"]:
         pts = zone["geometry"]["points"]
         color = "#f59e0b" if "Duct" in zone["type"] else "#3b82f6"
@@ -150,7 +142,6 @@ def render_3d_building(building):
     for floor in building["floors_data"]:
         z_base = floor["elevation"]
         z_top = z_base + building["floor_height"]
-        # Rooms as extruded boxes
         for room in floor["rooms"]:
             x0, y0 = room["x"], room["y"]
             x1, y1 = x0 + room["width"], y0 + room["depth"]
@@ -164,7 +155,6 @@ def render_3d_building(building):
                 name=room["name"],
                 showlegend=False
             ))
-        # MEP ducts as lines
         for zone in floor["mep_zones"]:
             pts = zone["geometry"]["points"]
             for i in range(len(pts)-1):
@@ -235,5 +225,4 @@ if "building" in st.session_state:
     st.metric("Total Gross Floor Area", f"{total_area} m²")
     st.metric("Estimated Structural Columns", f"{int(floors * 4 * math.sqrt(area_per_floor))}")
 
-    # Note about Autodesk (informational only, no code)
     st.info("💡 **Autodesk Platform Services (APS)** could be integrated to export this as a BIM model. You would need your own Forge app credentials. Ask for example integration code.")
