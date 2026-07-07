@@ -738,16 +738,12 @@ elif page == "Design Synthesis Lab":
             ["🗺️ Spatial Layout Blueprint", "📊 Structural Takeoffs", "📈 Convergence Analytics"]
         )
 
-        with tab_space:
-            st.markdown("### 🧠 AI-Generated Floor Plan (Binary Space Partitioning)")
-            # Render SVG floor plan
-            svg_content = render_floor_plan_svg(design["plan"], width=800, height=500)
-            st.markdown(
-                f'<div class="floorplan-container">{svg_content}</div>',
-                unsafe_allow_html=True
-            )
-            st.caption("Rooms are procedurally generated from the evolved room list. Layouts are unique every time.")
-
+        col_btn1, col_btn2 = st.columns(2)
+with col_btn1:
+    if st.button("🎲 Regenerate Layout (same rooms)"):
+        design["plan"] = generate_floor_plan_ai(design, 800, 500)
+        st.session_state.active_design = design
+        st.rerun()
         with tab_metrics:
             st.subheader("AI Structural Diagnostics")
             for level, msg in run_structural_review(design, st.session_state.config):
