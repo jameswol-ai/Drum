@@ -776,3 +776,20 @@ elif page == "Memory Repositories":
         save_memory()
         st.success("State maps reset clean.")
         st.rerun()
+
+with col_btn2:
+    # Download SVG
+    st.download_button(
+        label="⬇️ Download SVG",
+        data=svg_content,
+        file_name=f"floorplan_{design['id']}.svg",
+        mime="image/svg+xml"
+    )
+# Download JSON layout
+json_data = json.dumps(design["plan"], indent=2)
+st.download_button(
+    label="📋 Download Room Data (JSON)",
+    data=json_data,
+    file_name=f"rooms_{design['id']}.json",
+    mime="application/json"
+)
