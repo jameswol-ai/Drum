@@ -425,6 +425,60 @@ ROOM_COLORS = {
     "Corridor": "#334155"
 }
 
+# Room adjacency preferences: higher = want to be neighbours
+ADJACENCY = {
+    "Living Room":       {"Gourmet Kitchen": 3, "Flex Space": 2},
+    "Gourmet Kitchen":   {"Living Room": 3, "Flex Space": 2},
+    "Primary Bathroom":  {"Master Bedroom": 3, "Bedroom": 2},
+    "Bedroom":           {"Primary Bathroom": 3, "Master Bedroom": 2},
+    "Master Bedroom":    {"Primary Bathroom": 3, "Bedroom": 2},
+    "Flex Space":        {"Living Room": 2, "Gourmet Kitchen": 2},
+}
+def neighbour_score(leaf_a, leaf_b):
+    """Heuristic adjacency score between two rooms."""
+    if not leaf_a.room or not leaf_b.room:
+        return 0
+    s = ADJACENCY.get(leaf_a.room, {}).get(leaf_b.room, 0)
+    s += ADJACENCY.get(leaf_b.room, {}).get(leaf_a.room, 0)
+    return s
+
+def optimise_adjacency(leaves, iterations=200):
+    """Swap room assignments between leaves to increase adjacency of preferred neighbours."""
+    # Determine leaf neighbours (simplified: touching edges)
+    neighbours = {i: [] for i in range(len(leaves))}
+    for i, a in enumerate(leaves):
+        for j, b in enumerate(leaves):
+            if i >= j: continue
+            # Check if they share a boundary (axis-aligned)
+            h_overlap = (a.x < b.x + b.w and a.x + a.w > b.x)
+            v_overlap = (a.y < b.y + b.h and a.y + a.h > b.y)
+            if (abs(a.x + a.w - b.x) < 5 and v_overlap) or \
+               (abs(b.x + b.w - a.x) < 5 and v_overlap) or \
+               (abs(a.y + a.h - b.y) < 5 and h_overlap) or \
+               (abs(b.y + b.h - a.y) < 5 and h_overlap):
+                neighbours[i].append(j)
+                neighbours[j].append(i)
+
+    # Greedy swap to improve total adjacency
+    def total_score():
+        s = 0
+        for i, js in neighbours.items():
+            for j in js:
+                s += neighbour_score(leaves[i], leaves[j])
+        return s
+
+    current_score = total_score()
+    for _ in range(iterations):
+        i, j = random.sample(range(len(leaves)), 2)
+        # swap
+        leaves[i].room, leaves[j].room = leaves[j].room, leaves[i].room
+        new_score = total_score()
+        if new_score > current_score:
+            current_score = new_score
+        else:
+            # swap back
+            leaves[i].room, leaves[j].room = leaves[j].room, leaves[i].room
+
 def generate_floor_plan_ai(design, canvas_width=800, canvas_height=600):
     """
     AI-powered layout generator using Binary Space Partitioning.
