@@ -1,7 +1,7 @@
 # app.py
 # =============================
 # ARC STUDIO – STREAMLIT INTERFACE
-# Uses engine.py for all logic
+# Self-contained version: all logic now inline (no engine.py needed)
 # =============================
 
 import streamlit as st
@@ -9,14 +9,111 @@ import json
 from pathlib import Path
 from datetime import datetime
 import uuid
-#import engine  # our core module
+import random
+import math
+
+# ---------- Inline "engine" logic ----------
+ARCH_DOMAINS = {
+    "Residential": ["Apartment", "Villa", "Townhouse"],
+    "Commercial": ["Office", "Retail", "Mixed-Use"],
+    "Institutional": ["School", "Hospital", "Library"]
+}
+
+class Design:
+    def __init__(self, id=None, score=50, area_sqm=120, cost=180000, rooms=None, plan=None):
+        self.id = id or str(uuid.uuid4())[:6].upper()
+        self.score = score
+        self.area_sqm = area_sqm
+        self.cost = cost
+        self.rooms = rooms or []
+        self.plan = plan or []
+
+    def to_dict(self):
+        return {"id": self.id, "score": self.score, "area_sqm": self.area_sqm,
+                "cost": self.cost, "rooms": self.rooms, "plan": self.plan}
+
+    @staticmethod
+    def from_dict(d):
+        return Design(d["id"], d["score"], d["area_sqm"], d["cost"], d.get("rooms", []), d.get("plan", []))
+
+def generate_floor_plan_ai(design, width=800, height=500):
+    """Create a simple BSP-like layout with coloured rooms."""
+    if design.rooms:
+        rooms = design.rooms
+    else:
+        rooms = ["Living", "Bedroom 1", "Bedroom 2", "Kitchen", "Bathroom", "Hall"]
+    random.seed(hash(design.id) % 10000)
+    plan = []
+    # Simple grid partition
+    cols = math.ceil(math.sqrt(len(rooms)))
+    rows = math.ceil(len(rooms) / cols)
+    cell_w = width // cols
+    cell_h = height // rows
+    colors = ["#4f46e5", "#2563eb", "#7c3aed", "#db2777", "#ea580c", "#16a34a", "#ca8a04"]
+    for i, room_name in enumerate(rooms):
+        r = i // cols
+        c = i % cols
+        x = c * cell_w + 5
+        y = r * cell_h + 5
+        w = cell_w - 10
+        h = cell_h - 10
+        plan.append({
+            "x": x, "y": y, "w": w, "h": h,
+            "name": room_name,
+            "color": colors[i % len(colors)]
+        })
+    design.plan = plan
+    return plan
+
+def run_evolutionary_loop(typology, bedrooms, generations, pop_size, config):
+    """Simulate a genetic algorithm, returning best design and fitness trend."""
+    trend = []
+    base_score = 30 + random.randint(0, 20)
+    area = bedrooms * 30 + random.randint(10, 50)
+    cost = area * config.get("target_cost_per_sqm", 1500) + random.randint(-10000, 10000)
+    for gen in range(generations):
+        score = base_score + gen * (70 - base_score) / generations + random.uniform(-3, 3)
+        score = min(100, max(0, score))
+        trend.append(score)
+    best = Design(
+        score=round(trend[-1]),
+        area_sqm=area,
+        cost=cost,
+        rooms=[f"Room {i+1}" for i in range(bedrooms)]
+    )
+    return best, trend
+
+def run_structural_review(design, config):
+    """Return a list of (level, message) for structural alerts."""
+    msgs = []
+    if design.area_sqm > 200:
+        msgs.append(("warning", f"Large span ({design.area_sqm} m²) – consider additional columns."))
+    if design.cost > config["target_cost_per_sqm"] * design.area_sqm:
+        msgs.append(("danger", "Cost exceeds target – reduce beam sizes or simplify layout."))
+    else:
+        msgs.append(("success", "Cost within target budget."))
+    if design.score < 40:
+        msgs.append(("danger", "Fitness score critically low. Increase mutation strength."))
+    else:
+        msgs.append(("info", f"Fitness score {design.score}/100 – structural viability acceptable."))
+    return msgs
+
+def calculate_material_takeoffs(design):
+    """Simulate material quantities (returns list of dicts for st.table)."""
+    concrete = design.area_sqm * 0.35
+    steel = design.area_sqm * 0.12
+    return [
+        {"Material": "Concrete", "Quantity": f"{concrete:.1f} m³", "Unit Cost": "$120/m³", "Total": f"${concrete*120:,.0f}"},
+        {"Material": "Reinforcement Steel", "Quantity": f"{steel:.1f} tons", "Unit Cost": "$800/ton", "Total": f"${steel*800:,.0f}"},
+        {"Material": "Formwork", "Quantity": f"{design.area_sqm*2.5:.0f} m²", "Unit Cost": "$15/m²", "Total": f"${design.area_sqm*2.5*15:,.0f}"},
+    ]
 
 # ---------- Config & page setup ----------
 st.set_page_config(page_title="Arc Studio Engine", page_icon="📐", layout="wide",
                    initial_sidebar_state="expanded")
 
 MEMORY_FILE = Path("arc_memory.json")
-MAX_HISTORY = 10   # keep last N designs
+MAX_HISTORY = 10
 
 DEFAULT_STATE = {
     "projects": [],
@@ -26,140 +123,43 @@ DEFAULT_STATE = {
     "config_presets": {}
 }
 
-# ---------- CSS as a safe variable ----------
 CUSTOM_CSS = """
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600&family=Syne:wght@500;700;800&display=swap');
-
     html, body, [data-testid="stSidebarNav"], .stApp {
         font-family: 'Inter', sans-serif;
-        background: #0b0f19;
-        color: #e2e8f0;
+        background: #0b0f19; color: #e2e8f0;
     }
-
     h1, h2, h3, h4, h5, h6 {
-        font-family: 'Syne', sans-serif;
-        font-weight: 700;
-        letter-spacing: -0.02em;
-        color: #f1f5f9;
+        font-family: 'Syne', sans-serif; font-weight: 700; letter-spacing: -0.02em; color: #f1f5f9;
     }
-
     section[data-testid="stSidebar"] {
         background: linear-gradient(145deg, rgba(15,23,42,0.95) 0%, rgba(12,18,30,0.98) 100%);
         backdrop-filter: blur(20px);
         border-right: 1px solid rgba(148, 163, 184, 0.15);
         box-shadow: 4px 0 30px rgba(0,0,0,0.5);
     }
-
-    section[data-testid="stSidebar"] .stMarkdown, 
-    section[data-testid="stSidebar"] .stSelectbox label, 
-    section[data-testid="stSidebar"] .stSlider label {
-        color: #cbd5e1;
-    }
-
-    section[data-testid="stSidebar"] h1 {
-        background: linear-gradient(135deg, #7c3aed, #2563eb);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        font-weight: 800;
-    }
-
     .stButton > button {
         background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-        color: white;
-        border: none;
-        border-radius: 10px;
-        padding: 0.6rem 1.8rem;
-        font-weight: 600;
-        font-family: 'Syne', sans-serif;
-        letter-spacing: 0.5px;
-        transition: all 0.3s ease;
-        box-shadow: 0 4px 15px rgba(79, 70, 229, 0.4);
+        color: white; border: none; border-radius: 10px; padding: 0.6rem 1.8rem;
+        font-weight: 600; font-family: 'Syne', sans-serif; letter-spacing: 0.5px;
+        transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(79, 70, 229, 0.4);
     }
-    .stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(124, 58, 237, 0.6);
-        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-    }
-    .stButton > button:active {
-        transform: translateY(0);
-        box-shadow: 0 2px 8px rgba(79, 70, 229, 0.5);
-    }
-
+    .stButton > button:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(124, 58, 237, 0.6); }
     div[data-testid="stMetric"] {
-        background: rgba(255, 255, 255, 0.03);
-        backdrop-filter: blur(12px);
-        border: 1px solid rgba(148, 163, 184, 0.15);
-        border-radius: 12px;
-        padding: 1rem;
-        box-shadow: 0 8px 20px rgba(0,0,0,0.3);
-        transition: transform 0.2s ease;
+        background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px);
+        border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 12px; padding: 1rem;
     }
-    div[data-testid="stMetric"]:hover {
-        transform: scale(1.02);
-        border-color: rgba(148, 163, 184, 0.3);
-    }
-    div[data-testid="stMetric"] label {
-        color: #94a3b8 !important;
-        font-weight: 500;
-    }
-    div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
-        color: #f8fafc;
-        font-family: 'Syne', sans-serif;
-        font-weight: 700;
-    }
-
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 0.5rem;
-        background: rgba(15, 23, 42, 0.6);
-        border-radius: 12px;
-        padding: 4px;
-        backdrop-filter: blur(10px);
-    }
-    .stTabs [data-baseweb="tab"] {
-        border-radius: 8px;
-        padding: 0.6rem 1.5rem;
-        font-weight: 600;
-        font-family: 'Syne', sans-serif;
-        color: #94a3b8;
-        transition: all 0.2s;
-    }
-    .stTabs [aria-selected="true"] {
-        background: linear-gradient(135deg, #4f46e5, #7c3aed);
-        color: white !important;
-        box-shadow: 0 2px 12px rgba(79, 70, 229, 0.4);
-    }
-
     .floorplan-container {
-        background: #0f172a;
-        border-radius: 16px;
-        border: 1px solid rgba(148, 163, 184, 0.15);
-        padding: 0;
-        box-shadow: 0 20px 40px rgba(0,0,0,0.6);
-        margin: 1rem 0;
-        overflow: hidden;
+        background: #0f172a; border-radius: 16px; border: 1px solid rgba(148,163,184,0.15);
+        padding: 0; box-shadow: 0 20px 40px rgba(0,0,0,0.6); margin: 1rem 0; overflow: hidden;
     }
-    .floorplan-svg {
-        width: 100%;
-        height: auto;
-        display: block;
-    }
-
-    .alert {
-        border-radius: 8px;
-        padding: 0.6rem 1rem;
-        margin: 0.3rem 0;
-        backdrop-filter: blur(8px);
-        border-left: 4px solid;
-    }
+    .floorplan-svg { width: 100%; height: auto; display: block; }
+    .alert { border-radius: 8px; padding: 0.6rem 1rem; margin: 0.3rem 0; backdrop-filter: blur(8px); border-left: 4px solid; }
     .alert-danger { background: rgba(239,68,68,0.1); border-left-color: #ef4444; color: #fca5a5; }
     .alert-warning { background: rgba(234,179,8,0.1); border-left-color: #eab308; color: #fef08a; }
     .alert-info { background: rgba(59,130,246,0.1); border-left-color: #3b82f6; color: #93c5fd; }
     .alert-success { background: rgba(34,197,94,0.1); border-left-color: #22c55e; color: #86efac; }
-
-    ::-webkit-scrollbar { width: 8px; background: #0f172a; }
-    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
-    ::-webkit-scrollbar-thumb:hover { background: #475569; }
 </style>
 """
 
@@ -230,7 +230,7 @@ st.sidebar.markdown("---")
 
 with st.sidebar.expander("🏗️ Project & Typology", expanded=True):
     st.session_state.config["project_name"] = st.text_input("Project Name", value=st.session_state.config.get("project_name", "Unnamed Project"))
-    all_typologies = [t for sub in engine.ARCH_DOMAINS.values() for t in sub]
+    all_typologies = [t for sub in ARCH_DOMAINS.values() for t in sub]
     input_type = st.selectbox("Design Typology Target", all_typologies)
     input_bedrooms = st.slider("Target Spatial Modules (Bedrooms)", 1, 8, 3)
 
@@ -284,9 +284,9 @@ with st.sidebar.expander("📚 Design History", expanded=False):
         if selected_id != "None":
             if st.button("↩️ Restore Design"):
                 design_dict = next(d for d in mem["designs"] if d["id"] == selected_id)
-                design = engine.Design.from_dict(design_dict)
+                design = Design.from_dict(design_dict)
                 if not design.plan:
-                    design.plan = engine.generate_floor_plan_ai(design, 800, 500)
+                    design.plan = generate_floor_plan_ai(design, 800, 500)
                 st.session_state.active_design = design
                 st.session_state.active_history = []
                 st.rerun()
@@ -296,7 +296,6 @@ with st.sidebar.expander("📚 Design History", expanded=False):
 # ---------- Dashboard ----------
 if page == "Dashboard Control":
     st.title("📐 Studio Control Dashboard")
-    st.markdown("Systems active. Arc generative algorithms synchronized with engine hardware.")
     col1, col2, col3 = st.columns(3)
     col1.metric("Tracked Space Profiles", len(mem["projects"]))
     col2.metric("Evolved Blueprint Seeds", len(mem["designs"]))
@@ -312,18 +311,16 @@ if page == "Dashboard Control":
 # ---------- Synthesis Lab ----------
 elif page == "Design Synthesis Lab":
     st.title("🌍 Algorithmic Design Lab")
-    st.markdown("Manipulate generative presets inside the sidebar config block to modify systemic architectural constraints.")
-
     generate_now = st.button("▶ Run Generative Architectural Evolution Pipeline",
                              type="primary", use_container_width=True)
 
     if generate_now:
         with st.spinner("Processing structural mutations & resolving framing constraints..."):
-            best_specimen, optimization_trend = engine.run_evolutionary_loop(
+            best_specimen, optimization_trend = run_evolutionary_loop(
                 input_type, input_bedrooms, input_generations, input_pop,
                 st.session_state.config
             )
-            best_specimen.plan = engine.generate_floor_plan_ai(best_specimen, 800, 500)
+            best_specimen.plan = generate_floor_plan_ai(best_specimen, 800, 500)
 
             design_dict = best_specimen.to_dict()
             mem["designs"].append(design_dict)
@@ -357,12 +354,11 @@ elif page == "Design Synthesis Lab":
             st.markdown("### 🧠 AI-Generated Floor Plan (Binary Space Partitioning)")
             svg_content = render_floor_plan_svg(design.plan, 800, 500)
             st.markdown(f'<div class="floorplan-container">{svg_content}</div>', unsafe_allow_html=True)
-            st.caption("Adjacency‑optimised layout. Rooms are grouped intelligently.")
 
             col_ctrl1, col_ctrl2 = st.columns(2)
             with col_ctrl1:
                 if st.button("🎲 Regenerate Layout (same rooms)"):
-                    design.plan = engine.generate_floor_plan_ai(design, 800, 500)
+                    design.plan = generate_floor_plan_ai(design, 800, 500)
                     for i, d in enumerate(mem["designs"]):
                         if d["id"] == design.id:
                             mem["designs"][i] = design.to_dict()
@@ -378,11 +374,11 @@ elif page == "Design Synthesis Lab":
 
         with tab_metrics:
             st.subheader("AI Structural Diagnostics")
-            for level, msg in engine.run_structural_review(design, st.session_state.config):
+            for level, msg in run_structural_review(design, st.session_state.config):
                 st.markdown(f'<div class="alert alert-{level}">{msg}</div>', unsafe_allow_html=True)
             st.markdown("---")
             st.subheader("Material Quantum Requirements")
-            st.table(engine.calculate_material_takeoffs(design))
+            st.table(calculate_material_takeoffs(design))
 
         with tab_analytics:
             st.subheader("Genetic Algorithm Fitness Convergence Wave")
@@ -394,7 +390,6 @@ elif page == "Design Synthesis Lab":
 # ---------- Memory Repositories ----------
 elif page == "Memory Repositories":
     st.title("🧠 Engine Serialized Memory Cache")
-    st.markdown("Review system variables and system architectural metadata arrays.")
     st.subheader("Raw Memory Store Model State")
     st.json(mem)
     st.markdown("---")
