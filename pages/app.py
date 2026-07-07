@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 from datetime import datetime
 import uuid
-import engine  # our core module
+#import engine  # our core module
 
 # ---------- Config & page setup ----------
 st.set_page_config(page_title="Arc Studio Engine", page_icon="📐", layout="wide",
