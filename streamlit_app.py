@@ -1,7 +1,9 @@
+# streamlit_app.py
 # =============================
 # ARC ARCHITECTURE INTELLIGENCE ENGINE
 # Evolutionary Spatial Layout Synthesis & Diagnostics
 # Zero-Dependency Single-File Streamlit Implementation
+# Includes: weighted fitness, adjacency-aware BSP, re-roll, export, design history
 # =============================
 
 import streamlit as st
@@ -11,10 +13,11 @@ import random
 import math
 from pathlib import Path
 from datetime import datetime
+from typing import Dict, List, Tuple, Optional
 
-# =========================================================
+# ------------------------------------------------------------
 # CONFIG & GLOBAL STUDIO STYLING
-# =========================================================
+# ------------------------------------------------------------
 
 st.set_page_config(
     page_title="Arc Studio Engine",
@@ -24,11 +27,12 @@ st.set_page_config(
 )
 
 MEMORY_FILE = Path("arc_memory.json")
+MAX_HISTORY = 10  # keep only last N designs in memory
 
-# ---------------------------------------------------------
-# Custom Architectural Studio UI Skin – Enhanced Aesthetic
-# ---------------------------------------------------------
-st.markdown("""
+# ------------------------------------------------------------
+# Custom Architectural Studio UI Skin – stored safely in a variable
+# ------------------------------------------------------------
+CUSTOM_CSS = """
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600&family=Syne:wght@500;700;800&display=swap');
 
@@ -162,12 +166,12 @@ st.markdown("""
     ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
     ::-webkit-scrollbar-thumb:hover { background: #475569; }
 </style>
-""", unsafe_allow_html=True)
+"""
+st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
-# =========================================================
+# ------------------------------------------------------------
 # SYSTEM MEMORY MANAGEMENT
-# =========================================================
-
+# ------------------------------------------------------------
 DEFAULT_STATE = {
     "projects": [],
     "designs": [],
@@ -191,6 +195,8 @@ def load_memory():
 
 def save_memory():
     try:
+        if len(st.session_state.memory["designs"]) > MAX_HISTORY:
+            st.session_state.memory["designs"] = st.session_state.memory["designs"][-MAX_HISTORY:]
         with open(MEMORY_FILE, "w", encoding="utf-8") as f:
             json.dump(st.session_state.memory, f, indent=2)
     except Exception:
@@ -232,16 +238,30 @@ if "config" not in st.session_state:
 
 mem = st.session_state.memory
 
-# =========================================================
-# ARCHITECTURAL RULES & GENETICS (unchanged)
-# =========================================================
-
+# ------------------------------------------------------------
+# ARCHITECTURAL DOMAINS & ROOM COLOR MAPPING
+# ------------------------------------------------------------
 ARCH_DOMAINS = {
     "Residential": ["Luxury Villa", "Modern Apartment", "Townhouse"],
     "Commercial": ["Boutique Office", "Corporate Hub", "Hotel Resort", "Medical Clinic"],
     "Industrial": ["Distribution Warehouse", "Advanced Manufacturing Plant"]
 }
 
+ROOM_COLORS = {
+    "Living Room": "#1e3a8a",
+    "Gourmet Kitchen": "#064e3b",
+    "Primary Bathroom": "#78350f",
+    "Flex Space": "#475569",
+    "Adaptive Modular Terracing": "#0f766e",
+    "Bedroom": "#4c1d95",
+    "Corridor": "#334155",
+    "Master Bedroom": "#4c1d95",
+    "Void": "#1e293b"
+}
+
+# ------------------------------------------------------------
+# GENETIC OPERATORS
+# ------------------------------------------------------------
 def get_domain(btype):
     for domain, types in ARCH_DOMAINS.items():
         if btype in types:
@@ -265,8 +285,8 @@ def generate_base_design(btype, bedrooms):
         "cost": int(est_area * random.randint(1400, 2600))
     }
 
-def mutate_design(design_ctx, config):
-    d = json.loads(json.dumps(design_ctx))
+def mutate_design(design, config):
+    d = json.loads(json.dumps(design))  # deep copy
     col_mut = config.get("mutation_strength_col", 3)
     beam_mut = config.get("mutation_strength_beam", 5)
     d["structure"]["columns"] = max(10, d["structure"]["columns"] + random.randint(-col_mut, col_mut))
@@ -288,6 +308,9 @@ def crossover_designs(parent1, parent2):
     child["cost"] = int(child["area_sqm"] * random.randint(1400, 2600) + (child["structure"]["columns"] * 600))
     return child
 
+# ------------------------------------------------------------
+# FITNESS CALCULATION (weighted)
+# ------------------------------------------------------------
 def calculate_fitness(d, config):
     ideal_ratio = config.get("ideal_beam_col_ratio", 2.1)
     target_cost = config.get("target_cost_per_sqm", 1650)
@@ -304,32 +327,36 @@ def calculate_fitness(d, config):
     }
 
 def calculate_aggregate_score(fit_dict, weights):
-    """Weighted sum of sub-scores, normalised to 0-100."""
     struct = fit_dict["structural_integrity"]
     cost   = fit_dict["cost_efficiency"]
     compl  = fit_dict["spatial_complexity"]
-    w_s    = weights["structural"]
-    w_c    = weights["cost"]
-    w_x    = weights["complexity"]
+    w_s = weights.get("structural", 1.0)
+    w_c = weights.get("cost", 1.0)
+    w_x = weights.get("complexity", 1.0)
     total_weight = w_s + w_c + w_x
     if total_weight == 0:
         return 0
-    # theoretical max each sub-score is 100
-    weighted_avg = (struct*w_s + cost*w_c + compl*w_x) / total_weight
-    return int(weighted_avg)
+    return int((struct*w_s + cost*w_c + compl*w_x) / total_weight)
+
+# ------------------------------------------------------------
+# EVOLUTION LOOP
+# ------------------------------------------------------------
 def run_evolutionary_loop(btype, bedrooms, generations, pop_size, config):
     population = [generate_base_design(btype, bedrooms) for _ in range(pop_size)]
     history = []
     elitism_count = max(1, int(pop_size * config.get("elitism_frac", 0.4)))
+    weights = config.get("fitness_weights", {})
+
     for g in range(generations):
         scored_pop = []
         for d in population:
             fit = calculate_fitness(d, config)
             d["fitness"] = fit
-            d["score"] = calculate_aggregate_score(fit)
+            d["score"] = calculate_aggregate_score(fit, weights)
             scored_pop.append(d)
         scored_pop.sort(key=lambda x: x["score"], reverse=True)
         history.append(scored_pop[0]["score"])
+
         new_generation = scored_pop[:elitism_count]
         while len(new_generation) < pop_size:
             if config.get("crossover_enabled") and len(scored_pop) >= 2:
@@ -343,60 +370,49 @@ def run_evolutionary_loop(btype, bedrooms, generations, pop_size, config):
                 child = mutate_design(parent, config)
                 new_generation.append(child)
         population = new_generation[:pop_size]
+
+    # final scoring
     for d in population:
         fit = calculate_fitness(d, config)
         d["fitness"] = fit
-        d["score"] = calculate_aggregate_score(fit)
+        d["score"] = calculate_aggregate_score(fit, weights)
     best = max(population, key=lambda x: x["score"])
     return best, history
 
-# =========================================================
-# NEW: AI-POWERED FLOOR PLAN GENERATION (BSP Algorithm)
-# =========================================================
-
+# ------------------------------------------------------------
+# BSP FLOOR PLAN GENERATOR (with adjacency optimization)
+# ------------------------------------------------------------
 class BSPNode:
-    """Node in Binary Space Partitioning tree"""
     def __init__(self, x, y, w, h):
-        self.x = x          # top-left corner (pixels)
+        self.x = x
         self.y = y
-        self.w = w          # width (pixels)
-        self.h = h          # height (pixels)
+        self.w = w
+        self.h = h
         self.left = None
         self.right = None
-        self.room = None    # room assigned to leaf
+        self.room = None
 
 def split_node(node, horizontal=True):
-    """Split a node into two children"""
     if horizontal:
-        # Split horizontally (left/right)
         split = node.w // 2
-        left_w = split
-        right_w = node.w - split
-        node.left = BSPNode(node.x, node.y, left_w, node.h)
-        node.right = BSPNode(node.x + left_w, node.y, right_w, node.h)
+        node.left = BSPNode(node.x, node.y, split, node.h)
+        node.right = BSPNode(node.x + split, node.y, node.w - split, node.h)
     else:
-        # Split vertically (top/bottom)
         split = node.h // 2
-        top_h = split
-        bottom_h = node.h - split
-        node.left = BSPNode(node.x, node.y, node.w, top_h)
-        node.right = BSPNode(node.x, node.y + top_h, node.w, bottom_h)
+        node.left = BSPNode(node.x, node.y, node.w, split)
+        node.right = BSPNode(node.x, node.y + split, node.w, node.h - split)
 
 def build_bsp_tree(node, depth, max_depth):
-    """Recursively build a BSP tree up to max_depth"""
     if depth >= max_depth:
         return
-    # Alternate splitting direction
-    split_horiz = (depth % 2 == 0)
-    # Ensure the node is big enough to split (min 60px)
-    if (split_horiz and node.w < 100) or (not split_horiz and node.h < 100):
+    horizontal = (depth % 2 == 0)
+    if (horizontal and node.w < 100) or (not horizontal and node.h < 100):
         return
-    split_node(node, split_horiz)
+    split_node(node, horizontal)
     build_bsp_tree(node.left, depth+1, max_depth)
     build_bsp_tree(node.right, depth+1, max_depth)
 
 def collect_leaves(node, leaves):
-    """Collect all leaf nodes (terminal partitions)"""
     if node.left is None and node.right is None:
         leaves.append(node)
     else:
@@ -406,26 +422,11 @@ def collect_leaves(node, leaves):
             collect_leaves(node.right, leaves)
 
 def assign_rooms_to_leaves(leaves, rooms):
-    """Assign room names to leaves, shuffle to randomize"""
     random.shuffle(rooms)
     for i, leaf in enumerate(leaves):
-        if i < len(rooms):
-            leaf.room = rooms[i]
-        else:
-            leaf.room = "Corridor"  # Fill extra leaves with corridor
+        leaf.room = rooms[i] if i < len(rooms) else "Corridor"
 
-# Room type → color mapping (for visual differentiation)
-ROOM_COLORS = {
-    "Living Room": "#1e3a8a",
-    "Gourmet Kitchen": "#064e3b",
-    "Primary Bathroom": "#78350f",
-    "Flex Space": "#475569",
-    "Adaptive Modular Terracing": "#0f766e",
-    "Bedroom": "#4c1d95",
-    "Corridor": "#334155"
-}
-
-# Room adjacency preferences: higher = want to be neighbours
+# Adjacency preferences
 ADJACENCY = {
     "Living Room":       {"Gourmet Kitchen": 3, "Flex Space": 2},
     "Gourmet Kitchen":   {"Living Room": 3, "Flex Space": 2},
@@ -434,22 +435,22 @@ ADJACENCY = {
     "Master Bedroom":    {"Primary Bathroom": 3, "Bedroom": 2},
     "Flex Space":        {"Living Room": 2, "Gourmet Kitchen": 2},
 }
-def neighbour_score(leaf_a, leaf_b):
-    """Heuristic adjacency score between two rooms."""
-    if not leaf_a.room or not leaf_b.room:
+
+def neighbour_score(a, b):
+    if not a.room or not b.room:
         return 0
-    s = ADJACENCY.get(leaf_a.room, {}).get(leaf_b.room, 0)
-    s += ADJACENCY.get(leaf_b.room, {}).get(leaf_a.room, 0)
+    s = ADJACENCY.get(a.room, {}).get(b.room, 0)
+    s += ADJACENCY.get(b.room, {}).get(a.room, 0)
     return s
 
 def optimise_adjacency(leaves, iterations=200):
-    """Swap room assignments between leaves to increase adjacency of preferred neighbours."""
-    # Determine leaf neighbours (simplified: touching edges)
+    """Greedy swap to improve adjacency of preferred room neighbours."""
+    # Build neighbour pairs (touching rectangles)
     neighbours = {i: [] for i in range(len(leaves))}
     for i, a in enumerate(leaves):
         for j, b in enumerate(leaves):
-            if i >= j: continue
-            # Check if they share a boundary (axis-aligned)
+            if i >= j:
+                continue
             h_overlap = (a.x < b.x + b.w and a.x + a.w > b.x)
             v_overlap = (a.y < b.y + b.h and a.y + a.h > b.y)
             if (abs(a.x + a.w - b.x) < 5 and v_overlap) or \
@@ -459,7 +460,6 @@ def optimise_adjacency(leaves, iterations=200):
                 neighbours[i].append(j)
                 neighbours[j].append(i)
 
-    # Greedy swap to improve total adjacency
     def total_score():
         s = 0
         for i, js in neighbours.items():
@@ -470,42 +470,31 @@ def optimise_adjacency(leaves, iterations=200):
     current_score = total_score()
     for _ in range(iterations):
         i, j = random.sample(range(len(leaves)), 2)
-        # swap
         leaves[i].room, leaves[j].room = leaves[j].room, leaves[i].room
         new_score = total_score()
         if new_score > current_score:
             current_score = new_score
         else:
-            # swap back
             leaves[i].room, leaves[j].room = leaves[j].room, leaves[i].room
 
-def generate_floor_plan_ai(design, canvas_width=800, canvas_height=600):
-    """
-    AI-powered layout generator using Binary Space Partitioning.
-    Returns a list of room dicts with pixel positions and dimensions.
-    """
-    rooms_raw = design["rooms"][:]  # copy
-    # If there are bedrooms, add them as separate rooms
+def generate_floor_plan_ai(design, canvas_width=800, canvas_height=500):
+    rooms_raw = design["rooms"][:]
+    # Add bedrooms
     for i in range(design.get("bedrooms", 0)):
-        room_name = f"Master Bedroom" if i == 0 else f"Bedroom {i+1}"
+        room_name = "Master Bedroom" if i == 0 else f"Bedroom {i+1}"
         rooms_raw.append(room_name)
-
-    # Ensure at least 3 rooms
     if len(rooms_raw) < 3:
         rooms_raw += ["Flex Space"] * (3 - len(rooms_raw))
 
-    # Determine BSP depth: need enough leaves to hold all rooms
     num_rooms = len(rooms_raw)
-    depth = math.ceil(math.log2(num_rooms)) + 1  # leaves = 2^depth, ensure >= num_rooms
+    depth = math.ceil(math.log2(num_rooms)) + 1
 
-    # Create root node for the whole canvas
     root = BSPNode(0, 0, canvas_width, canvas_height)
     build_bsp_tree(root, 0, depth)
-
     leaves = []
     collect_leaves(root, leaves)
 
-    # If not enough leaves, force extra splits (shouldn't happen)
+    # fallback if not enough leaves
     while len(leaves) < num_rooms and depth < 10:
         depth += 1
         root = BSPNode(0, 0, canvas_width, canvas_height)
@@ -513,15 +502,13 @@ def generate_floor_plan_ai(design, canvas_width=800, canvas_height=600):
         leaves = []
         collect_leaves(root, leaves)
 
-    # Assign rooms to leaves
     assign_rooms_to_leaves(leaves, rooms_raw)
+    optimise_adjacency(leaves)   # 🔥 adjacency optimization
 
-    # Convert leaves to room data for rendering
     plan_rooms = []
     for leaf in leaves:
         if leaf.room is None:
             leaf.room = "Void"
-        # Get color from mapping or generate a random one
         color = ROOM_COLORS.get(leaf.room, "#" + ''.join(random.choices("89ABCDEF", k=6)))
         plan_rooms.append({
             "name": leaf.room,
@@ -533,51 +520,9 @@ def generate_floor_plan_ai(design, canvas_width=800, canvas_height=600):
         })
     return plan_rooms
 
-# =========================================================
-# GRAPHICS: RENDER SVG FLOOR PLAN
-# =========================================================
-
-def render_floor_plan_svg(rooms, width=800, height=600):
-    """Generate an SVG element for the floor plan"""
-    svg_header = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" class="floorplan-svg" style="background: #0f172a;">'
-    svg_parts = [svg_header]
-
-    # Draw grid
-    for i in range(0, width, 50):
-        svg_parts.append(f'<line x1="{i}" y1="0" x2="{i}" y2="{height}" stroke="#1e293b" stroke-width="0.5" opacity="0.3"/>')
-    for j in range(0, height, 50):
-        svg_parts.append(f'<line x1="0" y1="{j}" x2="{width}" y2="{j}" stroke="#1e293b" stroke-width="0.5" opacity="0.3"/>')
-
-    # Draw rooms
-    for room in rooms:
-        name = room["name"]
-        x, y, w, h = room["x"], room["y"], room["w"], room["h"]
-        color = room["color"]
-        # Room rectangle with fill and stroke
-        svg_parts.append(
-            f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="{color}" fill-opacity="0.25" '
-            f'stroke="#475569" stroke-width="2" stroke-opacity="0.8"/>'
-        )
-        # Room label
-        font_size = min(w // 8, h // 6, 16)
-        svg_parts.append(
-            f'<text x="{x + w/2}" y="{y + h/2}" font-family="Syne, sans-serif" font-size="{font_size}" '
-            f'fill="#e2e8f0" text-anchor="middle" dominant-baseline="middle" font-weight="600">{name}</text>'
-        )
-        # Dimensions label (optional)
-        dim_text = f'{w//5}m × {h//5}m'  # rough scale: 1m = 5px
-        svg_parts.append(
-            f'<text x="{x + w/2}" y="{y + h/2 + font_size + 5}" font-family="Inter" font-size="{max(8, font_size-2)}" '
-            f'fill="#94a3b8" text-anchor="middle">{dim_text}</text>'
-        )
-
-    svg_parts.append('</svg>')
-    return ''.join(svg_parts)
-
-# =========================================================
-# DESIGN METRICS AND DIAGNOSTICS (unchanged)
-# =========================================================
-
+# ------------------------------------------------------------
+# STRUCTURAL DIAGNOSTICS & TAKEOFFS
+# ------------------------------------------------------------
 def run_structural_review(d, config):
     alerts = []
     if d["structure"]["columns"] < 16:
@@ -598,12 +543,44 @@ def calculate_material_takeoffs(d):
         {"Structural Asset Item": "Calculated Structural Dead Load Base", "Calculated Takeoff": f"{int(d['structure']['columns'] * 13.2):,} kN"}
     ]
 
-# =========================================================
-# SIDEBAR WORKSPACE (same as before)
-# =========================================================
+# ------------------------------------------------------------
+# SVG RENDERING
+# ------------------------------------------------------------
+def render_floor_plan_svg(rooms, width=800, height=500):
+    svg_parts = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" class="floorplan-svg" style="background: #0f172a;">'
+    ]
+    # Grid
+    for i in range(0, width, 50):
+        svg_parts.append(f'<line x1="{i}" y1="0" x2="{i}" y2="{height}" stroke="#1e293b" stroke-width="0.5" opacity="0.3"/>')
+    for j in range(0, height, 50):
+        svg_parts.append(f'<line x1="0" y1="{j}" x2="{width}" y2="{j}" stroke="#1e293b" stroke-width="0.5" opacity="0.3"/>')
+    # Rooms
+    for room in rooms:
+        x, y, w, h = room["x"], room["y"], room["w"], room["h"]
+        color = room["color"]
+        svg_parts.append(
+            f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="{color}" fill-opacity="0.25" '
+            f'stroke="#475569" stroke-width="2" stroke-opacity="0.8"/>'
+        )
+        font_size = min(w//8, h//6, 16)
+        svg_parts.append(
+            f'<text x="{x+w/2}" y="{y+h/2}" font-family="Syne, sans-serif" font-size="{font_size}" '
+            f'fill="#e2e8f0" text-anchor="middle" dominant-baseline="middle" font-weight="600">{room["name"]}</text>'
+        )
+        dim_text = f'{w//5}m × {h//5}m'
+        svg_parts.append(
+            f'<text x="{x+w/2}" y="{y+h/2+font_size+5}" font-family="Inter" font-size="{max(8,font_size-2)}" '
+            f'fill="#94a3b8" text-anchor="middle">{dim_text}</text>'
+        )
+    svg_parts.append('</svg>')
+    return ''.join(svg_parts)
 
+# ------------------------------------------------------------
+# SIDEBAR WORKSPACE
+# ------------------------------------------------------------
 st.sidebar.title("📐 Arc Studio")
-st.sidebar.caption("v10.2 • Generative Structural Design Loop")
+st.sidebar.caption("v10.3 • Generative Structural Design Loop")
 st.sidebar.markdown("---")
 
 page = st.sidebar.radio(
@@ -611,14 +588,11 @@ page = st.sidebar.radio(
     ["Dashboard Control", "Design Synthesis Lab", "Memory Repositories"],
     index=1
 )
-
 st.sidebar.markdown("---")
 
 with st.sidebar.expander("🏗️ Project & Typology", expanded=True):
     st.session_state.config["project_name"] = st.text_input("Project Name", value=st.session_state.config.get("project_name", "Unnamed Project"))
-    all_typologies = []
-    for sub_list in ARCH_DOMAINS.values():
-        all_typologies.extend(sub_list)
+    all_typologies = [t for sub in ARCH_DOMAINS.values() for t in sub]
     input_type = st.selectbox("Design Typology Target", all_typologies)
     input_bedrooms = st.slider("Target Spatial Modules (Bedrooms)", 1, 8, 3)
 
@@ -664,10 +638,26 @@ with st.sidebar.expander("⚡ Evolution Control", expanded=False):
     input_generations = st.slider("Genetic Epoch Cycles", 2, 20, 6)
     input_pop = st.slider("Population Bounds", 4, 30, 10)
 
-# =========================================================
-# VIEWPORT: DASHBOARD
-# =========================================================
+# ---------- Design History Gallery in Sidebar ----------
+with st.sidebar.expander("📚 Design History", expanded=False):
+    if mem["designs"]:
+        ids = [d["id"] for d in mem["designs"]]
+        selected_id = st.selectbox("Load a previous design", ["None"] + ids)
+        if selected_id != "None":
+            if st.button("↩️ Restore Design"):
+                design_dict = next(d for d in mem["designs"] if d["id"] == selected_id)
+                # Ensure it has a plan (for older designs)
+                if "plan" not in design_dict or not design_dict["plan"]:
+                    design_dict["plan"] = generate_floor_plan_ai(design_dict, 800, 500)
+                st.session_state.active_design = design_dict
+                st.session_state.active_history = []
+                st.rerun()
+    else:
+        st.caption("No designs yet.")
 
+# ------------------------------------------------------------
+# VIEWPORT: DASHBOARD
+# ------------------------------------------------------------
 if page == "Dashboard Control":
     st.title("📐 Studio Control Dashboard")
     st.markdown("Systems active. Arc generative algorithms synchronized with engine hardware.")
@@ -683,10 +673,9 @@ if page == "Dashboard Control":
     else:
         st.info("System operational logs are current and empty.")
 
-# =========================================================
-# VIEWPORT: SYNTHESIS LAB (updated with new floor plan)
-# =========================================================
-
+# ------------------------------------------------------------
+# VIEWPORT: DESIGN SYNTHESIS LAB
+# ------------------------------------------------------------
 elif page == "Design Synthesis Lab":
     st.title("🌍 Algorithmic Design Lab")
     st.markdown("Manipulate generative presets inside the sidebar config block to modify systemic architectural constraints.")
@@ -707,7 +696,7 @@ elif page == "Design Synthesis Lab":
                 st.session_state.config
             )
 
-            # AI-powered floor plan (BSP)
+            # AI-powered floor plan (BSP with adjacency)
             best_specimen["plan"] = generate_floor_plan_ai(best_specimen, canvas_width=800, canvas_height=500)
 
             mem["designs"].append(best_specimen)
@@ -721,6 +710,7 @@ elif page == "Design Synthesis Lab":
             st.session_state.active_design = best_specimen
             st.session_state.active_history = optimization_trend
             log_event(f"Evolved Optimized Blueprint Specimen Archetype #{best_specimen['id']}")
+            save_memory()
 
         st.markdown("---")
 
@@ -738,12 +728,31 @@ elif page == "Design Synthesis Lab":
             ["🗺️ Spatial Layout Blueprint", "📊 Structural Takeoffs", "📈 Convergence Analytics"]
         )
 
-        col_btn1, col_btn2 = st.columns(2)
-with col_btn1:
-    if st.button("🎲 Regenerate Layout (same rooms)"):
-        design["plan"] = generate_floor_plan_ai(design, 800, 500)
-        st.session_state.active_design = design
-        st.rerun()
+        with tab_space:
+            st.markdown("### 🧠 AI-Generated Floor Plan (Binary Space Partitioning)")
+            svg_content = render_floor_plan_svg(design["plan"], width=800, height=500)
+            st.markdown(f'<div class="floorplan-container">{svg_content}</div>', unsafe_allow_html=True)
+            st.caption("Adjacency‑optimised layout. Rooms are grouped intelligently.")
+
+            # Re-roll & Export
+            col_ctrl1, col_ctrl2 = st.columns(2)
+            with col_ctrl1:
+                if st.button("🎲 Regenerate Layout (same rooms)"):
+                    design["plan"] = generate_floor_plan_ai(design, 800, 500)
+                    # Update the stored design in memory
+                    for i, d in enumerate(mem["designs"]):
+                        if d["id"] == design["id"]:
+                            mem["designs"][i] = design
+                            break
+                    save_memory()
+                    st.rerun()
+            with col_ctrl2:
+                st.download_button("⬇️ Download SVG", data=svg_content,
+                                   file_name=f"floorplan_{design['id']}.svg", mime="image/svg+xml")
+                json_plan = json.dumps(design["plan"], indent=2)
+                st.download_button("📋 Download Room Data (JSON)", data=json_plan,
+                                   file_name=f"rooms_{design['id']}.json", mime="application/json")
+
         with tab_metrics:
             st.subheader("AI Structural Diagnostics")
             for level, msg in run_structural_review(design, st.session_state.config):
@@ -759,11 +768,10 @@ with col_btn1:
     else:
         st.info("No active production layout model loaded. Configure settings and run the generator engine.")
 
-# =========================================================
+# ------------------------------------------------------------
 # VIEWPORT: MEMORY REPOSITORIES
-# =========================================================
-
-#elif page == "Memory Repositories"
+# ------------------------------------------------------------
+elif page == "Memory Repositories":
     st.title("🧠 Engine Serialized Memory Cache")
     st.markdown("Review system variables and system architectural metadata arrays.")
     st.subheader("Raw Memory Store Model State")
@@ -777,35 +785,5 @@ with col_btn1:
         st.success("State maps reset clean.")
         st.rerun()
 
-with col_btn2:
-    # Download SVG
-    st.download_button(
-        label="⬇️ Download SVG",
-        data=svg_content,
-        file_name=f"floorplan_{design['id']}.svg",
-        mime="image/svg+xml"
-    )
-# Download JSON layout
-json_data = json.dumps(design["plan"], indent=2)
-st.download_button(
-    label="📋 Download Room Data (JSON)",
-    data=json_data,
-    file_name=f"rooms_{design['id']}.json",
-    mime="application/json"
-)
-
-with st.sidebar.expander("📚 Design History", expanded=False):
-    if mem["designs"]:
-        ids = [d["id"] for d in mem["designs"]]
-        selected_id = st.selectbox("Load a previous design", ["None"] + ids)
-        if selected_id != "None":
-            design_to_load = next(d for d in mem["designs"] if d["id"] == selected_id)
-            if st.button("↩️ Restore Design"):
-                st.session_state.active_design = design_to_load
-                # regenerate plan if not present (backwards compat)
-                if "plan" not in design_to_load:
-                    design_to_load["plan"] = generate_floor_plan_ai(design_to_load, 800, 500)
-                st.session_state.active_history = []   # no convergence chart for old designs
-                st.rerun()
-    else:
-        st.caption("No designs yet.")
+if __name__ == "__main__":
+    pass
