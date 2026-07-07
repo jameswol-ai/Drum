@@ -8,6 +8,7 @@ import streamlit as st
 import json
 from pathlib import Path
 from datetime import datetime
+import uuid
 import engine  # our core module
 
 # ---------- Config & styling ----------
@@ -25,11 +26,140 @@ DEFAULT_STATE = {
     "config_presets": {}
 }
 
-# ---------- Custom CSS (same as original, omitted for brevity but keep it) ----------
-# (insert the full CSS block from your original code here)
+# ---------- Custom Architectural Studio UI Skin – Enhanced Aesthetic ----------
 st.markdown("""
 <style>
-    @import url(...); /* full original CSS */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600&family=Syne:wght@500;700;800&display=swap');
+
+    html, body, [data-testid="stSidebarNav"], .stApp {
+        font-family: 'Inter', sans-serif;
+        background: #0b0f19;
+        color: #e2e8f0;
+    }
+
+    h1, h2, h3, h4, h5, h6 {
+        font-family: 'Syne', sans-serif;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: #f1f5f9;
+    }
+
+    section[data-testid="stSidebar"] {
+        background: linear-gradient(145deg, rgba(15,23,42,0.95) 0%, rgba(12,18,30,0.98) 100%);
+        backdrop-filter: blur(20px);
+        border-right: 1px solid rgba(148, 163, 184, 0.15);
+        box-shadow: 4px 0 30px rgba(0,0,0,0.5);
+    }
+
+    section[data-testid="stSidebar"] .stMarkdown, 
+    section[data-testid="stSidebar"] .stSelectbox label, 
+    section[data-testid="stSidebar"] .stSlider label {
+        color: #cbd5e1;
+    }
+
+    section[data-testid="stSidebar"] h1 {
+        background: linear-gradient(135deg, #7c3aed, #2563eb);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-weight: 800;
+    }
+
+    .stButton > button {
+        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        padding: 0.6rem 1.8rem;
+        font-weight: 600;
+        font-family: 'Syne', sans-serif;
+        letter-spacing: 0.5px;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(79, 70, 229, 0.4);
+    }
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(124, 58, 237, 0.6);
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    }
+    .stButton > button:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 8px rgba(79, 70, 229, 0.5);
+    }
+
+    div[data-testid="stMetric"] {
+        background: rgba(255, 255, 255, 0.03);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(148, 163, 184, 0.15);
+        border-radius: 12px;
+        padding: 1rem;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+        transition: transform 0.2s ease;
+    }
+    div[data-testid="stMetric"]:hover {
+        transform: scale(1.02);
+        border-color: rgba(148, 163, 184, 0.3);
+    }
+    div[data-testid="stMetric"] label {
+        color: #94a3b8 !important;
+        font-weight: 500;
+    }
+    div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
+        color: #f8fafc;
+        font-family: 'Syne', sans-serif;
+        font-weight: 700;
+    }
+
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0.5rem;
+        background: rgba(15, 23, 42, 0.6);
+        border-radius: 12px;
+        padding: 4px;
+        backdrop-filter: blur(10px);
+    }
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 8px;
+        padding: 0.6rem 1.5rem;
+        font-weight: 600;
+        font-family: 'Syne', sans-serif;
+        color: #94a3b8;
+        transition: all 0.2s;
+    }
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #4f46e5, #7c3aed);
+        color: white !important;
+        box-shadow: 0 2px 12px rgba(79, 70, 229, 0.4);
+    }
+
+    .floorplan-container {
+        background: #0f172a;
+        border-radius: 16px;
+        border: 1px solid rgba(148, 163, 184, 0.15);
+        padding: 0;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+        margin: 1rem 0;
+        overflow: hidden;
+    }
+    .floorplan-svg {
+        width: 100%;
+        height: auto;
+        display: block;
+    }
+
+    .alert {
+        border-radius: 8px;
+        padding: 0.6rem 1rem;
+        margin: 0.3rem 0;
+        backdrop-filter: blur(8px);
+        border-left: 4px solid;
+    }
+    .alert-danger { background: rgba(239,68,68,0.1); border-left-color: #ef4444; color: #fca5a5; }
+    .alert-warning { background: rgba(234,179,8,0.1); border-left-color: #eab308; color: #fef08a; }
+    .alert-info { background: rgba(59,130,246,0.1); border-left-color: #3b82f6; color: #93c5fd; }
+    .alert-success { background: rgba(34,197,94,0.1); border-left-color: #22c55e; color: #86efac; }
+
+    ::-webkit-scrollbar { width: 8px; background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -90,7 +220,7 @@ if "config" not in st.session_state:
 
 mem = st.session_state.memory
 
-# ---------- Sidebar (same layout, but uses engine constants) ----------
+# ---------- Sidebar ----------
 st.sidebar.title("📐 Arc Studio")
 st.sidebar.caption("v10.3 • Modular Generative Design Engine")
 st.sidebar.markdown("---")
@@ -158,11 +288,10 @@ with st.sidebar.expander("📚 Design History", expanded=False):
             if st.button("↩️ Restore Design"):
                 design_dict = next(d for d in mem["designs"] if d["id"] == selected_id)
                 design = engine.Design.from_dict(design_dict)
-                # generate plan if missing (for designs saved before this update)
                 if not design.plan:
                     design.plan = engine.generate_floor_plan_ai(design, 800, 500)
                 st.session_state.active_design = design
-                st.session_state.active_history = []  # no trend for old designs
+                st.session_state.active_history = []
                 st.rerun()
     else:
         st.caption("No designs yet.")
@@ -197,10 +326,8 @@ elif page == "Design Synthesis Lab":
                 input_type, input_bedrooms, input_generations, input_pop,
                 st.session_state.config
             )
-            # AI floor plan with adjacency
             best_specimen.plan = engine.generate_floor_plan_ai(best_specimen, 800, 500)
 
-            # Save to memory
             design_dict = best_specimen.to_dict()
             mem["designs"].append(design_dict)
             mem["evolution"].append({
@@ -231,17 +358,14 @@ elif page == "Design Synthesis Lab":
 
         with tab_space:
             st.markdown("### 🧠 AI-Generated Floor Plan (Binary Space Partitioning)")
-            # Render SVG
             svg_content = render_floor_plan_svg(design.plan, 800, 500)
             st.markdown(f'<div class="floorplan-container">{svg_content}</div>', unsafe_allow_html=True)
             st.caption("Adjacency‑optimised layout. Rooms are grouped intelligently.")
 
-            # Controls: re‑roll & export
             col_ctrl1, col_ctrl2 = st.columns(2)
             with col_ctrl1:
                 if st.button("🎲 Regenerate Layout (same rooms)"):
                     design.plan = engine.generate_floor_plan_ai(design, 800, 500)
-                    # update stored design
                     for i, d in enumerate(mem["designs"]):
                         if d["id"] == design.id:
                             mem["designs"][i] = design.to_dict()
@@ -285,12 +409,11 @@ elif page == "Memory Repositories":
         st.success("State maps reset clean.")
         st.rerun()
 
-# ---------- SVG render helper (kept in app.py for styling) ----------
+# ---------- SVG render helper ----------
 def render_floor_plan_svg(rooms, width=800, height=500):
     svg_parts = [
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" class="floorplan-svg" style="background: #0f172a;">'
     ]
-    # Grid
     for i in range(0, width, 50):
         svg_parts.append(f'<line x1="{i}" y1="0" x2="{i}" y2="{height}" stroke="#1e293b" stroke-width="0.5" opacity="0.3"/>')
     for j in range(0, height, 50):
