@@ -1,158 +1,17 @@
 # streamlit_app.py
 # =============================
 # ARC STUDIO ENGINE – AEC/MEP SYNTHESIS
-# Simplified single‑click building generator
-# 2D SVG floor plan + interactive 3D (Plotly) with MEP/HVAC zones
+# Single‑click building generator: 2D SVG floor plan + interactive 3D (Plotly) with MEP/HVAC zones
 # =============================
 
 import streamlit as st
 import math
-import random
-import numpy as np
-import requests
-import base64
-import time
+import plotly.graph_objects as go
 
-# ---------- APS helpers (same as above) ----------
-def get_access_token():
-    url = "https://developer.api.autodesk.com/authentication/v2/token"
-    headers = {"Content-Type": "application/x-www-form-urlencoded"}
-    data = {
-        "client_id": st.secrets["APS_CLIENT_ID"],
-        "client_secret": st.secrets["APS_CLIENT_SECRET"],
-        "grant_type": "client_credentials",
-        "scope": "data:read data:write bucket:create bucket:read code:all",
-    }
-    resp = requests.post(url, headers=headers, data=data)
-    resp.raise_for_status()
-    return resp.json()["access_token"]
-
-def object_id_to_urn(object_id):
-    return base64.urlsafe_b64encode(object_id.encode()).decode().rstrip("=")
-
-class APSModel:
-    def __init__(self, token):
-        self.token = token
-        self.headers = {"Authorization": f"Bearer {token}"}
-
-    def create_bucket(self, bucket_key):
-        url = "https://developer.api.autodesk.com/oss/v2/buckets"
-        data = {"bucketKey": bucket_key, "policyKey": "transient"}
-        resp = requests.post(url, headers=self.headers, json=data)
-        if resp.status_code == 409:
-            return
-        resp.raise_for_status()
-
-    def upload_file(self, bucket_key, object_name, file_path):
-        url = f"https://developer.api.autodesk.com/oss/v2/buckets/{bucket_key}/objects/{object_name}/signeds3upload"
-        resp = requests.get(url, headers=self.headers)
-        upload_info = resp.json()
-        with open(file_path, "rb") as f:
-            upload_resp = requests.put(upload_info["urls"][0], data=f)
-        upload_resp.raise_for_status()
-        finalize_url = f"https://developer.api.autodesk.com/oss/v2/buckets/{bucket_key}/objects/{object_name}/signeds3upload"
-        complete_data = {
-            "ossbucketKey": bucket_key,
-            "ossSourceFileObjectKey": object_name,
-            "parts": [{"part": 1, "etag": upload_resp.headers["ETag"]}],
-        }
-        requests.post(finalize_url, headers=self.headers, json=complete_data).raise_for_status()
-
-    def translate(self, urn):
-        url = "https://developer.api.autodesk.com/modelderivative/v2/designdata/job"
-        data = {
-            "input": {"urn": urn},
-            "output": {
-                "destination": {"region": "us"},
-                "formats": [{"type": "svf2", "views": ["2d", "3d"]}],
-            },
-        }
-        resp = requests.post(url, headers={**self.headers, "Content-Type": "application/json"}, json=data)
-        resp.raise_for_status()
-
-    def get_manifest(self, urn):
-        url = f"https://developer.api.autodesk.com/modelderivative/v2/designdata/{urn}/manifest"
-        resp = requests.get(url, headers=self.headers)
-        resp.raise_for_status()
-        return resp.json()
-
-# ---------- Streamlit UI ----------
-st.title("Autodesk Viewer in Streamlit")
-
-# Step 1: Get token (cache it)
-@st.cache_data(ttl=3500)  # cache just under 1 hour
-def fetch_token():
-    return get_access_token()
-
-token = fetch_token()
-aps = APSModel(token)
-
-# Step 2: Upload a file
-uploaded_file = st.file_uploader("Choose a design file (e.g., .rvt, .dwg, .stp)", type=["rvt", "dwg", "stp", "obj", "ipt", "iam"])
-if uploaded_file:
-    # Save temporarily
-    with open(uploaded_file.name, "wb") as f:
-        f.write(uploaded_file.getbuffer())
-    
-    bucket_key = "streamlit-demo-bucket"  # Use a unique bucket name
-    object_name = uploaded_file.name
-    aps.create_bucket(bucket_key)
-    
-    with st.spinner("Uploading to Autodesk OSS..."):
-        aps.upload_file(bucket_key, object_name, uploaded_file.name)
-    st.success("Upload complete!")
-    
-    urn = object_id_to_urn(object_name)
-    st.write(f"URN: {urn}")
-    
-    # Step 3: Translate
-    with st.spinner("Starting translation..."):
-        aps.translate(urn)
-    st.info("Translation job submitted. Waiting for completion...")
-    
-    # Wait for translation to finish (polling manifest)
-    while True:
-        manifest = aps.get_manifest(urn)
-        if manifest["status"] == "success":
-            break
-        elif manifest["status"] == "failed":
-            st.error("Translation failed. Check the manifest for details.")
-            st.stop()
-        time.sleep(5)
-    st.success("Translation succeeded!")
-    
-    # Step 4: Embed Viewer
-    viewer_html = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <link rel="stylesheet" href="https://developer.api.autodesk.com/modelderivative/v2/viewers/7.*/style.min.css">
-        <script src="https://developer.api.autodesk.com/modelderivative/v2/viewers/7.*/viewer3D.min.js"></script>
-        <style>body, html {{ margin: 0; padding: 0; height: 100%; }} #aps-viewer {{ width: 100%; height: 100%; }}</style>
-    </head>
-    <body>
-        <div id="aps-viewer"></div>
-        <script>
-            const options = {{
-                env: 'AutodeskProduction2',
-                api: 'streamerV2',
-                accessToken: '{token}'
-            }};
-            Autodesk.Viewing.Initializer(options, function() {{
-                const viewer = new Autodesk.Viewing.GuiViewer3D(document.getElementById('aps-viewer'));
-                viewer.start();
-                Autodesk.Viewing.Document.load('urn:{urn}', function(doc) {{
-                    viewer.loadDocumentNode(doc, doc.getRoot().getDefaultGeometry());
-                }}, (code) => console.error('Error loading document: ' + code));
-            }});
-        </script>
-    </body>
-    </html>
-    """
-    st.components.v1.html(viewer_html, height=600)
-
-# ---------- Page config & styling ----------
+# ---------- Page config MUST be first Streamlit command ----------
 st.set_page_config(page_title="AEC/MEP Studio", page_icon="🏗️", layout="wide")
+
+# ---------- Custom styling ----------
 st.markdown("""
 <style>
     .stApp { background: #0b0f19; color: #e2e8f0; }
@@ -178,7 +37,7 @@ def generate_building(building_type, floors, area_per_floor, rooms_per_floor, hv
     }
 
     for f in range(floors):
-        # Generate rectangular floor layout using simple grid
+        # Rectangular floor plan (square root of area)
         side = math.sqrt(area_per_floor)
         width = side
         depth = side
@@ -195,7 +54,7 @@ def generate_building(building_type, floors, area_per_floor, rooms_per_floor, hv
             for c in range(cols):
                 if room_counter >= rooms_per_floor:
                     break
-                # Assign room type based on position
+                # Assign room type based on building type and position
                 if building_type == "Office":
                     room_type = "Open Office" if c % 2 == 0 else "Meeting Room"
                 elif building_type == "Residential":
@@ -215,7 +74,7 @@ def generate_building(building_type, floors, area_per_floor, rooms_per_floor, hv
 
         # MEP/HVAC zones (simplified)
         mep_zones = []
-        # Add main duct along corridor (center of floor)
+        # Main duct along the centre corridor
         corridor_x = width / 2 - 0.5
         mep_zones.append({
             "type": "HVAC Duct",
@@ -224,7 +83,7 @@ def generate_building(building_type, floors, area_per_floor, rooms_per_floor, hv
                 "size": 0.4
             }
         })
-        # Branch ducts to each room (just lines)
+        # Branch ducts to each room
         for room in rooms:
             cx = room["x"] + room["width"] / 2
             cy = room["y"] + room["depth"] / 2
@@ -248,8 +107,8 @@ def generate_building(building_type, floors, area_per_floor, rooms_per_floor, hv
     return building
 
 # ---------- 2D SVG Renderer ----------
-def render_2d_floor(floor_data, floor_num, highlight_room=None):
-    w = floor_data["width"] * 50  # 1m = 50px
+def render_2d_floor(floor_data):
+    w = floor_data["width"] * 50   # 1 m = 50 px
     d = floor_data["depth"] * 50
     svg = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {d}" style="background:#0f172a; width:100%; height:auto;">'
     # Grid
@@ -263,11 +122,13 @@ def render_2d_floor(floor_data, floor_num, highlight_room=None):
         ry = room["y"] * 50
         rw = room["width"] * 50
         rd = room["depth"] * 50
-        color = {"Living Room": "#1e3a8a", "Bedroom": "#4c1d95", "Bathroom": "#78350f",
-                 "Open Office": "#064e3b", "Meeting Room": "#0f766e", "Flex Space": "#475569"}.get(room["type"], "#334155")
+        color = {
+            "Living Room": "#1e3a8a", "Bedroom": "#4c1d95", "Bathroom": "#78350f",
+            "Open Office": "#064e3b", "Meeting Room": "#0f766e", "Flex Space": "#475569"
+        }.get(room["type"], "#334155")
         svg += f'<rect x="{rx}" y="{ry}" width="{rw}" height="{rd}" fill="{color}" fill-opacity="0.3" stroke="#94a3b8" stroke-width="2"/>'
         svg += f'<text x="{rx+rw/2}" y="{ry+rd/2}" font-size="10" fill="white" text-anchor="middle" dominant-baseline="middle">{room["name"]}</text>'
-    # MEP ducts (simplified lines)
+    # MEP ducts (dashed lines)
     for zone in floor_data["mep_zones"]:
         pts = zone["geometry"]["points"]
         color = "#f59e0b" if "Duct" in zone["type"] else "#3b82f6"
@@ -281,9 +142,11 @@ def render_2d_floor(floor_data, floor_num, highlight_room=None):
 # ---------- 3D Plotly Renderer ----------
 def render_3d_building(building):
     fig = go.Figure()
-    colors = {"Living Room": "blue", "Bedroom": "purple", "Bathroom": "orange",
-              "Open Office": "green", "Meeting Room": "teal", "Flex Space": "gray",
-              "HVAC Duct": "gold", "Branch Duct": "goldenrod"}
+    colors = {
+        "Living Room": "blue", "Bedroom": "purple", "Bathroom": "orange",
+        "Open Office": "green", "Meeting Room": "teal", "Flex Space": "gray",
+        "HVAC Duct": "gold", "Branch Duct": "goldenrod"
+    }
 
     for floor in building["floors_data"]:
         z_base = floor["elevation"]
@@ -330,9 +193,9 @@ def render_3d_building(building):
     )
     return fig
 
-# ---------- UI ----------
+# ---------- User Interface ----------
 st.title("🏗️ AEC/MEP Building Synthesizer")
-st.markdown("One‑click generation of a multidisciplinary building with **architecture, structure, MEP & HVAC** – no genetic epochs needed.")
+st.markdown("One‑click generation of a multidisciplinary building with **architecture, structure, MEP & HVAC** – no epochs, no complex setup.")
 
 with st.sidebar:
     st.header("Design Parameters")
@@ -351,7 +214,6 @@ if "building" in st.session_state:
     building = st.session_state["building"]
     st.success(f"Generated {building['floors']}‑storey {building['type']} building with {building['hvac']} HVAC.")
 
-    # Floor selector
     floor_choice = st.selectbox("Select Floor for 2D Plan", [f"Floor {i+1}" for i in range(building["floors"])])
     floor_idx = int(floor_choice.split()[-1]) - 1
     floor_data = building["floors_data"][floor_idx]
@@ -359,15 +221,14 @@ if "building" in st.session_state:
     col2d, col3d = st.columns(2)
     with col2d:
         st.subheader(f"2D Floor Plan – {floor_choice}")
-        svg = render_2d_floor(floor_data, floor_idx+1)
+        svg = render_2d_floor(floor_data)
         st.markdown(f'<div style="border:1px solid #334155; border-radius:8px; overflow:hidden;">{svg}</div>', unsafe_allow_html=True)
-        st.caption("Rooms with colour‑coding; dashed lines = HVAC ducts.")
-
+        st.caption("Rooms colour‑coded; dashed lines = HVAC ducts.")
     with col3d:
         st.subheader("3D Building Model (Interactive)")
         fig3d = render_3d_building(building)
         st.plotly_chart(fig3d, use_container_width=True)
-        st.caption("Drag to rotate, scroll to zoom. Ducts shown as lines at ceiling level.")
+        st.caption("Drag to rotate, scroll to zoom. Ducts shown at ceiling level.")
 
     st.markdown("---")
     st.subheader("📊 Building Summary")
@@ -375,5 +236,5 @@ if "building" in st.session_state:
     st.metric("Total Gross Floor Area", f"{total_area} m²")
     st.metric("Estimated Structural Columns", f"{int(floors * 4 * math.sqrt(area_per_floor))}")
 
-    # Autodesk API hint
-    st.info("💡 **Autodesk Platform Services (APS)** can be integrated to export this building as a BIM model (Revit). You would need to set up a Forge app and use the Model Derivative & Design Automation APIs. Contact us for example integration code.")
+    # Note about Autodesk (informational only, no code)
+    st.info("💡 **Autodesk Platform Services (APS)** could be integrated to export this as a BIM model. You would need your own Forge app credentials. Ask for example integration code.")
