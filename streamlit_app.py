@@ -6,7 +6,7 @@
 
 import streamlit as st
 import math
-import plotly.graph_objects as go          # <-- Fixed: missing import
+import plotly.graph_objects as go   # <-- Essential for 3D rendering
 
 # ---------- Page config MUST be first Streamlit command ----------
 st.set_page_config(page_title="AEC/MEP Studio", page_icon="🏗️", layout="wide")
