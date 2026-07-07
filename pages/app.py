@@ -1,4 +1,4 @@
-# app.py (fixed)
+# pages/app.py (fixed – KeyError proof)
 # =============================
 # GENERAL STREAMLIT DASHBOARD
 # Replace the placeholder functions with your own logic.
@@ -49,9 +49,7 @@ CUSTOM_CSS = """
 
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
-# ---------- Placeholder Domain Logic (replace with your own) ----------
-# Example: a simple entity and its evolution simulation.
-
+# ---------- Placeholder Domain Logic ----------
 class Design:
     def __init__(self, id=None, score=50, parameters=None, plan=None):
         self.id = id or str(uuid.uuid4())[:6].upper()
@@ -72,10 +70,8 @@ class Design:
         return Design(d["id"], d["score"], d.get("parameters", {}), d.get("plan", []))
 
 def generate_plan(design, width=800, height=500):
-    """Create a simple SVG plan (grid of boxes). Replace with your own renderer."""
     plan = []
-    cols = 4
-    rows = 3
+    cols, rows = 4, 3
     cell_w = width // cols
     cell_h = height // rows
     for i in range(cols * rows):
@@ -91,7 +87,6 @@ def generate_plan(design, width=800, height=500):
     return plan
 
 def render_svg_plan(plan, width=800, height=500):
-    """Render plan as inline SVG (moved up to avoid NameError)."""
     svg = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" style="width:100%; background:#0f172a;">'
     for item in plan:
         x, y, w, h = item["x"], item["y"], item["w"], item["h"]
@@ -102,7 +97,6 @@ def render_svg_plan(plan, width=800, height=500):
     return svg
 
 def run_evolutionary_loop(typology, generations, pop_size, config):
-    """Simulated optimisation. Replace with your actual algorithm."""
     trend = []
     score = 30 + random.randint(0, 20)
     for gen in range(generations):
@@ -114,7 +108,6 @@ def run_evolutionary_loop(typology, generations, pop_size, config):
     return best, trend
 
 def run_review(design, config):
-    """Return list of (level, message) alerts."""
     msgs = []
     if design.score < 40:
         msgs.append(("danger", "Score critically low."))
@@ -123,7 +116,6 @@ def run_review(design, config):
     return msgs
 
 def calculate_metrics(design):
-    """Example metric table."""
     return [
         {"Metric": "Score", "Value": design.score},
         {"Metric": "Parameter 1", "Value": design.parameters.get("dim", 0)},
@@ -132,36 +124,56 @@ def calculate_metrics(design):
 
 # ---------- Memory & Session ----------
 def load_memory():
-    if MEMORY_FILE.exists():
-        try:
+    """Load memory file and ensure ALL default keys exist."""
+    try:
+        if MEMORY_FILE.exists():
             with open(MEMORY_FILE, "r") as f:
                 data = json.load(f)
-                for key in DEFAULT_STATE:
-                    if key not in data:
-                        data[key] = DEFAULT_STATE[key]
-                return data
-        except Exception:
-            return DEFAULT_STATE.copy()
-    return DEFAULT_STATE.copy()
+        else:
+            data = {}
+    except Exception:
+        data = {}
+
+    # Guarantee that every default key is present
+    for key, default_value in DEFAULT_STATE.items():
+        if key not in data:
+            data[key] = default_value
+    return data
 
 def save_memory():
     try:
-        if len(st.session_state.memory["designs"]) > MAX_HISTORY:
-            st.session_state.memory["designs"] = st.session_state.memory["designs"][-MAX_HISTORY:]
+        # Ensure all expected keys exist before saving
+        mem = st.session_state.memory
+        for key in DEFAULT_STATE:
+            if key not in mem:
+                mem[key] = DEFAULT_STATE[key]
+        if len(mem["designs"]) > MAX_HISTORY:
+            mem["designs"] = mem["designs"][-MAX_HISTORY:]
         with open(MEMORY_FILE, "w") as f:
-            json.dump(st.session_state.memory, f, indent=2)
+            json.dump(mem, f, indent=2)
     except Exception:
         pass
 
 def log_event(msg):
-    st.session_state.memory["logs"].append({
+    mem = st.session_state.memory
+    # defensive: ensure logs list exists
+    if "logs" not in mem:
+        mem["logs"] = []
+    mem["logs"].append({
         "time": datetime.now().isoformat(),
         "msg": msg
     })
     save_memory()
 
+# ---------- Initialise session state ----------
 if "memory" not in st.session_state:
     st.session_state.memory = load_memory()
+else:
+    # Ensure current memory has all default keys (e.g., after a crash)
+    for key, default_value in DEFAULT_STATE.items():
+        if key not in st.session_state.memory:
+            st.session_state.memory[key] = default_value
+
 if "active_design" not in st.session_state:
     st.session_state.active_design = None
 if "active_history" not in st.session_state:
@@ -185,7 +197,6 @@ page = st.sidebar.radio("Workspace",
 with st.sidebar.expander("Project", expanded=True):
     st.session_state.config["project_name"] = st.text_input(
         "Project Name", value=st.session_state.config.get("project_name", "Unnamed"))
-    # Generic typology list – edit as needed
     typologies = ["Type A", "Type B", "Type C"]
     input_type = st.selectbox("Design Typology", typologies)
 
@@ -199,13 +210,15 @@ with st.sidebar.expander("Evolution Control", expanded=False):
     input_pop = st.slider("Population Size", 4, 30,
                           st.session_state.config.get("population_size", 10))
 
-# ---------- Design History ----------
+# ---------- Design History (defensive check) ----------
 with st.sidebar.expander("History", expanded=False):
-    if mem["designs"]:
-        ids = [d["id"] for d in mem["designs"]]
+    # *** FIX: use .get() to avoid KeyError ***
+    designs = mem.get("designs", [])
+    if designs:
+        ids = [d["id"] for d in designs]
         selected = st.selectbox("Load design", ["None"] + ids)
         if selected != "None" and st.button("Restore"):
-            design_dict = next(d for d in mem["designs"] if d["id"] == selected)
+            design_dict = next(d for d in designs if d["id"] == selected)
             design = Design.from_dict(design_dict)
             if not design.plan:
                 design.plan = generate_plan(design)
@@ -219,10 +232,10 @@ with st.sidebar.expander("History", expanded=False):
 if page == "Dashboard":
     st.title("📊 Dashboard")
     col1, col2 = st.columns(2)
-    col1.metric("Designs stored", len(mem["designs"]))
-    col2.metric("Evolutions run", len(mem["evolution"]))
+    col1.metric("Designs stored", len(mem.get("designs", [])))
+    col2.metric("Evolutions run", len(mem.get("evolution", [])))
     st.subheader("Recent logs")
-    for log in reversed(mem["logs"][-5:]):
+    for log in reversed(mem.get("logs", [])[-5:]):
         st.caption(f"{log['time'][11:19]} – {log['msg']}")
 
 # ---------- Design Lab Page ----------
@@ -234,7 +247,12 @@ elif page == "Design Lab":
                 input_type, input_generations, input_pop, st.session_state.config
             )
             best.plan = generate_plan(best)
+            # defensive: ensure designs list exists
+            if "designs" not in mem:
+                mem["designs"] = []
             mem["designs"].append(best.to_dict())
+            if "evolution" not in mem:
+                mem["evolution"] = []
             mem["evolution"].append({
                 "id": str(uuid.uuid4())[:6].upper(),
                 "best_id": best.id,
@@ -257,9 +275,12 @@ elif page == "Design Lab":
 
         tab1, tab2, tab3 = st.tabs(["Plan", "Metrics", "Convergence"])
         with tab1:
-            svg = render_svg_plan(design.plan)   # NOW DEFINED ABOVE
-            st.markdown(f'<div style="background:#0f172a; border-radius:12px; padding:8px;">{svg}</div>',
-                        unsafe_allow_html=True)
+            if design.plan:
+                svg = render_svg_plan(design.plan)
+                st.markdown(f'<div style="background:#0f172a; border-radius:12px; padding:8px;">{svg}</div>',
+                            unsafe_allow_html=True)
+            else:
+                st.info("No plan to display.")
         with tab2:
             for level, msg in run_review(design, st.session_state.config):
                 color_map = {"danger": "#ef4444", "warning": "#eab308", "info": "#3b82f6", "success": "#22c55e"}
