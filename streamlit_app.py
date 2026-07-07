@@ -1,7 +1,7 @@
 # streamlit_app.py
 # =============================
 # DRUM – Design & Rhythm Utility Machine
-# Main entry point. Replace placeholder functions with your own logic.
+# Main entry point. Placeholder functions replaced with simulated logic.
 # =============================
 
 import streamlit as st
@@ -15,7 +15,9 @@ st.set_page_config(page_title="DRUM Studio", page_icon="🥁", layout="wide",
                    initial_sidebar_state="expanded")
 
 MEMORY_FILE = Path("drum_memory.json")
-MAX_HISTORY = 10
+MAX_BUILDINGS = 10
+MAX_LOGS = 50
+MAX_SESSIONS = 20
 
 DEFAULT_STATE = {
     "buildings": [],
@@ -56,7 +58,7 @@ class Building:
         self.id = id or str(uuid.uuid4())[:6].upper()
         self.name = name or f"Bldg_{self.id}"
         self.score = score
-        self.plan = plan or []
+        self.plan = plan if plan is not None else []
 
     def to_dict(self):
         return {"id": self.id, "name": self.name, "score": self.score, "plan": self.plan}
@@ -64,6 +66,9 @@ class Building:
     @staticmethod
     def from_dict(d):
         b = Building(d["id"], d.get("name", ""), d["score"], d.get("plan", []))
+        # Ensure plan is always populated when loaded
+        if not b.plan:
+            generate_building_plan(b)
         return b
 
 def generate_building_plan(building, width=800, height=500):
@@ -81,7 +86,6 @@ def generate_building_plan(building, width=800, height=500):
     building.plan = plan
     return plan
 
-# FIXED: show_building defined BEFORE any call.
 def show_building(building, label):
     """Display building details and an SVG plan."""
     st.subheader(f"Building {label} — {building.name}")
@@ -138,10 +142,16 @@ def load_memory():
 
 def save_memory():
     try:
-        if len(st.session_state.memory["buildings"]) > MAX_HISTORY:
-            st.session_state.memory["buildings"] = st.session_state.memory["buildings"][-MAX_HISTORY:]
+        # Trim collections to avoid bloat
+        mem = st.session_state.memory
+        if len(mem["buildings"]) > MAX_BUILDINGS:
+            mem["buildings"] = mem["buildings"][-MAX_BUILDINGS:]
+        if len(mem["logs"]) > MAX_LOGS:
+            mem["logs"] = mem["logs"][-MAX_LOGS:]
+        if len(mem["sessions"]) > MAX_SESSIONS:
+            mem["sessions"] = mem["sessions"][-MAX_SESSIONS:]
         with open(MEMORY_FILE, "w") as f:
-            json.dump(st.session_state.memory, f, indent=2)
+            json.dump(mem, f, indent=2)
     except:
         pass
 
@@ -149,6 +159,7 @@ def log_event(msg):
     st.session_state.memory["logs"].append({"time": datetime.now().isoformat(), "msg": msg})
     save_memory()
 
+# ---- Initialise session state ----
 if "memory" not in st.session_state:
     st.session_state.memory = load_memory()
 if "active_building" not in st.session_state:
@@ -158,8 +169,16 @@ if "config" not in st.session_state:
 
 mem = st.session_state.memory
 
+# Restore last active building from memory if nothing is active
+if st.session_state.active_building is None and mem["sessions"]:
+    last_session = mem["sessions"][-1]
+    bid = last_session.get("building_id")
+    match = next((b for b in mem["buildings"] if b.get("id") == bid), None)
+    if match:
+        st.session_state.active_building = Building.from_dict(match)
+
 # =============================
-# UI
+# UI – Sidebar & Navigation
 # =============================
 st.sidebar.title("🥁 DRUM Studio")
 page = st.sidebar.radio("Navigate", ["Dashboard", "Design Lab", "Memory"], index=1)
@@ -167,17 +186,6 @@ page = st.sidebar.radio("Navigate", ["Dashboard", "Design Lab", "Memory"], index
 with st.sidebar.expander("Settings"):
     st.session_state.config["generations"] = st.slider("Generations", 2, 20, st.session_state.config["generations"])
     st.session_state.config["style"] = st.selectbox("Style", ["minimal", "bold", "organic"])
-
-# --- Main call: now show_building is definitely defined ---
-# Example: if an active building exists, display it
-if st.session_state.active_building:
-    show_building(st.session_state.active_building, "Active")
-else:
-    # Still fine because show_building is already defined.
-    # We'll create a demo building to avoid errors but not overwrite anything.
-    demo = Building(name="Demo", score=85)
-    generate_building_plan(demo)
-    show_building(demo, "Demo")  # line 476 would have crashed before; now it's safe
 
 # =============================
 # Dashboard
@@ -191,23 +199,44 @@ if page == "Dashboard":
     for log in reversed(mem["logs"][-5:]):
         st.caption(f"{log['time'][11:19]} – {log['msg']}")
 
+# =============================
+# Design Lab
+# =============================
 elif page == "Design Lab":
     st.title("🧪 Design Lab")
-    if st.button("Run Optimisation", type="primary"):
-        with st.spinner("Evolving..."):
-            best, trend = simulate_design_evolution(st.session_state.config)
-            generate_building_plan(best)
-            mem["buildings"].append(best.to_dict())
-            mem["sessions"].append({"id": str(uuid.uuid4())[:6], "building_id": best.id, "time": datetime.now().isoformat()})
-            st.session_state.active_building = best
-            log_event(f"New design: {best.name}")
-            save_memory()
-    if st.session_state.active_building:
-        show_building(st.session_state.active_building, "Active")  # fine
-    else:
-        st.info("Run an optimisation to see results.")
 
-else:  # Memory
+    col_act, col_demo = st.columns([2,1])
+    with col_act:
+        if st.button("Run Optimisation", type="primary"):
+            with st.spinner("Evolving..."):
+                best, trend = simulate_design_evolution(st.session_state.config)
+                generate_building_plan(best)
+                mem["buildings"].append(best.to_dict())
+                mem["sessions"].append({
+                    "id": str(uuid.uuid4())[:6],
+                    "building_id": best.id,
+                    "time": datetime.now().isoformat()
+                })
+                st.session_state.active_building = best
+                log_event(f"New design: {best.name}")
+                save_memory()
+
+    with col_demo:
+        if st.button("Load Demo"):
+            demo = Building(name="Demo", score=85)
+            generate_building_plan(demo)
+            st.session_state.active_building = demo
+            log_event("Loaded demo building")
+
+    if st.session_state.active_building:
+        show_building(st.session_state.active_building, "Active")
+    else:
+        st.info("Run an optimisation or load the demo to see a design.")
+
+# =============================
+# Memory
+# =============================
+else:
     st.title("🧠 Memory")
     st.json(mem)
     if st.button("Clear all"):
