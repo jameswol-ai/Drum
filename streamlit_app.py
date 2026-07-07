@@ -31,7 +31,6 @@ st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600&family=Syne:wght@500;700;800&display=swap');
 
-    /* ---------- Global Overrides ---------- */
     html, body, [data-testid="stSidebarNav"], .stApp {
         font-family: 'Inter', sans-serif;
         background: #0b0f19;
@@ -45,7 +44,6 @@ st.markdown("""
         color: #f1f5f9;
     }
 
-    /* ---------- Sidebar Glass Panel ---------- */
     section[data-testid="stSidebar"] {
         background: linear-gradient(145deg, rgba(15,23,42,0.95) 0%, rgba(12,18,30,0.98) 100%);
         backdrop-filter: blur(20px);
@@ -59,7 +57,6 @@ st.markdown("""
         color: #cbd5e1;
     }
 
-    /* Sidebar title & caption */
     section[data-testid="stSidebar"] h1 {
         background: linear-gradient(135deg, #7c3aed, #2563eb);
         -webkit-background-clip: text;
@@ -67,7 +64,6 @@ st.markdown("""
         font-weight: 800;
     }
 
-    /* ---------- Buttons ---------- */
     .stButton > button {
         background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
         color: white;
@@ -90,17 +86,6 @@ st.markdown("""
         box-shadow: 0 2px 8px rgba(79, 70, 229, 0.5);
     }
 
-    /* Danger button (memory purge) */
-    .stButton > button[kind="secondary"] {
-        background: linear-gradient(135deg, #b91c1c 0%, #dc2626 100%);
-        box-shadow: 0 4px 15px rgba(220, 38, 38, 0.4);
-    }
-    .stButton > button[kind="secondary"]:hover {
-        background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
-        box-shadow: 0 6px 20px rgba(239, 68, 68, 0.6);
-    }
-
-    /* ---------- Metrics Cards ---------- */
     div[data-testid="stMetric"] {
         background: rgba(255, 255, 255, 0.03);
         backdrop-filter: blur(12px);
@@ -116,7 +101,6 @@ st.markdown("""
     }
     div[data-testid="stMetric"] label {
         color: #94a3b8 !important;
-        font-family: 'Inter', sans-serif;
         font-weight: 500;
     }
     div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
@@ -125,7 +109,6 @@ st.markdown("""
         font-weight: 700;
     }
 
-    /* ---------- Tabs ---------- */
     .stTabs [data-baseweb="tab-list"] {
         gap: 0.5rem;
         background: rgba(15, 23, 42, 0.6);
@@ -147,7 +130,6 @@ st.markdown("""
         box-shadow: 0 2px 12px rgba(79, 70, 229, 0.4);
     }
 
-    /* ---------- Blueprint Canvas ---------- */
     .arc-blueprint-canvas {
         display: flex;
         flex-wrap: wrap;
@@ -203,7 +185,6 @@ st.markdown("""
         text-shadow: 0 2px 4px rgba(0,0,0,0.3);
     }
 
-    /* ---------- Data Tables (Takeoffs) ---------- */
     .stTable {
         background: rgba(15, 23, 42, 0.5);
         backdrop-filter: blur(12px);
@@ -220,46 +201,27 @@ st.markdown("""
         color: #e2e8f0;
     }
 
-    /* ---------- Alerts (Structural Diagnostics) ---------- */
-    .stMarkdown .alert {
+    .alert {
         border-radius: 8px;
         padding: 0.6rem 1rem;
         margin: 0.3rem 0;
         backdrop-filter: blur(8px);
         border-left: 4px solid;
     }
-    .alert-warning {
-        background: rgba(234, 179, 8, 0.1);
-        border-left-color: #eab308;
-        color: #fef08a;
-    }
-    .alert-danger {
-        background: rgba(239, 68, 68, 0.1);
-        border-left-color: #ef4444;
-        color: #fca5a5;
-    }
-    .alert-info {
-        background: rgba(59, 130, 246, 0.1);
-        border-left-color: #3b82f6;
-        color: #93c5fd;
-    }
-    .alert-success {
-        background: rgba(34, 197, 94, 0.1);
-        border-left-color: #22c55e;
-        color: #86efac;
-    }
+    .alert-danger { background: rgba(239,68,68,0.1); border-left-color: #ef4444; color: #fca5a5; }
+    .alert-warning { background: rgba(234,179,8,0.1); border-left-color: #eab308; color: #fef08a; }
+    .alert-info { background: rgba(59,130,246,0.1); border-left-color: #3b82f6; color: #93c5fd; }
+    .alert-success { background: rgba(34,197,94,0.1); border-left-color: #22c55e; color: #86efac; }
 
-    /* ---------- Scrollbar ---------- */
-    ::-webkit-scrollbar {
-        width: 8px;
-        background: #0f172a;
-    }
-    ::-webkit-scrollbar-thumb {
-        background: #334155;
-        border-radius: 10px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-        background: #475569;
+    ::-webkit-scrollbar { width: 8px; background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+    /* Sidebar expander styling */
+    section[data-testid="stSidebar"] .streamlit-expanderHeader {
+        font-family: 'Syne', sans-serif;
+        font-weight: 600;
+        color: #e2e8f0;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -272,14 +234,20 @@ DEFAULT_STATE = {
     "projects": [],
     "designs": [],
     "logs": [],
-    "evolution": []
+    "evolution": [],
+    "config_presets": {}
 }
 
 def load_memory():
     if MEMORY_FILE.exists():
         try:
             with open(MEMORY_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
+                # Ensure new keys exist
+                for key in DEFAULT_STATE:
+                    if key not in data:
+                        data[key] = DEFAULT_STATE[key]
+                return data
         except Exception:
             return DEFAULT_STATE.copy()
     return DEFAULT_STATE.copy()
@@ -308,6 +276,25 @@ if "active_design" not in st.session_state:
 if "active_history" not in st.session_state:
     st.session_state.active_history = []
 
+if "config" not in st.session_state:
+    # Default config that will be updated from sidebar widgets
+    st.session_state.config = {
+        "project_name": "Unnamed Project",
+        "mutation_rate": 0.5,
+        "mutation_strength_col": 3,
+        "mutation_strength_beam": 5,
+        "elitism_frac": 0.4,
+        "crossover_enabled": False,
+        "ideal_beam_col_ratio": 2.1,
+        "target_cost_per_sqm": 1650,
+        "fitness_weights": {
+            "structural": 1.0,
+            "cost": 1.0,
+            "complexity": 1.0
+        },
+        "units": "metric"  # or imperial
+    }
+
 mem = st.session_state.memory
 
 # =========================================================
@@ -329,7 +316,6 @@ def get_domain(btype):
 def generate_base_design(btype, bedrooms):
     core_rooms = ["Living Room", "Gourmet Kitchen", "Primary Bathroom"] + ["Flex Space"] * random.randint(1, 3)
     est_area = (65) + (44) + (3 * 3) + (bedrooms * 18)
-
     return {
         "id": str(uuid.uuid4())[:8].upper(),
         "type": btype,
@@ -344,45 +330,68 @@ def generate_base_design(btype, bedrooms):
         "cost": int(est_area * random.randint(1400, 2600))
     }
 
-def mutate_design(design_ctx):
+def mutate_design(design_ctx, config):
     d = json.loads(json.dumps(design_ctx))
-    d["structure"]["columns"] = max(10, d["structure"]["columns"] + random.randint(-2, 4))
-    d["structure"]["beams"] = max(16, d["structure"]["beams"] + random.randint(-4, 6))
+    # Mutation strength from config
+    col_mut = config.get("mutation_strength_col", 3)
+    beam_mut = config.get("mutation_strength_beam", 5)
+    d["structure"]["columns"] = max(10, d["structure"]["columns"] + random.randint(-col_mut, col_mut))
+    d["structure"]["beams"] = max(16, d["structure"]["beams"] + random.randint(-beam_mut, beam_mut))
 
-    if random.random() > 0.5:
+    if random.random() < config.get("mutation_rate", 0.5):
+        # Add a room (could also remove or modify)
         d["rooms"].append("Adaptive Modular Terracing")
         d["area_sqm"] += 20
 
     d["cost"] = int(d["area_sqm"] * random.randint(1300, 2500) + (d["structure"]["columns"] * 600))
     return d
 
-def calculate_fitness(d):
+def crossover_designs(parent1, parent2):
+    # Simple uniform crossover for structures and room count
+    child = json.loads(json.dumps(parent1))
+    if random.random() < 0.5:
+        child["structure"]["columns"] = parent2["structure"]["columns"]
+    if random.random() < 0.5:
+        child["structure"]["beams"] = parent2["structure"]["beams"]
+    # Combine rooms from both parents (unique)
+    child["rooms"] = list(set(parent1["rooms"] + parent2["rooms"]))
+    # Recalculate area and cost
+    child["area_sqm"] = max(parent1["area_sqm"], parent2["area_sqm"]) + 5
+    child["cost"] = int(child["area_sqm"] * random.randint(1400, 2600) + (child["structure"]["columns"] * 600))
+    return child
+
+def calculate_fitness(d, config):
+    ideal_ratio = config.get("ideal_beam_col_ratio", 2.1)
+    target_cost = config.get("target_cost_per_sqm", 1650)
+    weights = config.get("fitness_weights", {"structural":1.0, "cost":1.0, "complexity":1.0})
+
     structural_ratio = d["structure"]["beams"] / max(1, d["structure"]["columns"])
-    struct_score = max(0, 100 - int(abs(structural_ratio - 2.1) * 22))
+    struct_score = max(0, 100 - int(abs(structural_ratio - ideal_ratio) * 22))
 
     cost_per_sqm = d["cost"] / max(1, d["area_sqm"])
-    cost_score = max(0, 100 - int(abs(cost_per_sqm - 1650) * 0.04))
+    cost_score = max(0, 100 - int(abs(cost_per_sqm - target_cost) * 0.04))
 
     complexity_score = min(100, len(d["rooms"]) * 9)
 
+    # Apply weights
     return {
-        "structural_integrity": struct_score,
-        "cost_efficiency": cost_score,
-        "spatial_complexity": complexity_score
+        "structural_integrity": int(struct_score * weights["structural"]),
+        "cost_efficiency": int(cost_score * weights["cost"]),
+        "spatial_complexity": int(complexity_score * weights["complexity"])
     }
 
 def calculate_aggregate_score(fit_dict):
     return int(sum(fit_dict.values()) / len(fit_dict))
 
-def run_evolutionary_loop(btype, bedrooms, generations, pop_size):
+def run_evolutionary_loop(btype, bedrooms, generations, pop_size, config):
     population = [generate_base_design(btype, bedrooms) for _ in range(pop_size)]
     history = []
+    elitism_count = max(1, int(pop_size * config.get("elitism_frac", 0.4)))
 
     for g in range(generations):
         scored_pop = []
-
         for d in population:
-            fit = calculate_fitness(d)
+            fit = calculate_fitness(d, config)
             d["fitness"] = fit
             d["score"] = calculate_aggregate_score(fit)
             scored_pop.append(d)
@@ -390,16 +399,32 @@ def run_evolutionary_loop(btype, bedrooms, generations, pop_size):
         scored_pop.sort(key=lambda x: x["score"], reverse=True)
         history.append(scored_pop[0]["score"])
 
-        survivors = scored_pop[:max(2, pop_size // 2)]
-        new_generation = []
+        # Elitism: keep best performers
+        new_generation = scored_pop[:elitism_count]
 
-        for parent in survivors:
-            new_generation.append(parent)
-            new_generation.append(mutate_design(parent))
+        # Fill the rest with offspring
+        while len(new_generation) < pop_size:
+            if config.get("crossover_enabled") and len(scored_pop) >= 2:
+                # Select two parents from top half
+                parent1 = random.choice(scored_pop[:max(2, pop_size//2)])
+                parent2 = random.choice(scored_pop[:max(2, pop_size//2)])
+                child = crossover_designs(parent1, parent2)
+                child = mutate_design(child, config)
+                new_generation.append(child)
+            else:
+                parent = random.choice(scored_pop[:max(2, pop_size//2)])
+                child = mutate_design(parent, config)
+                new_generation.append(child)
 
         population = new_generation[:pop_size]
 
-    return scored_pop[0], history
+    # Final evaluation for best
+    for d in population:
+        fit = calculate_fitness(d, config)
+        d["fitness"] = fit
+        d["score"] = calculate_aggregate_score(fit)
+    best = max(population, key=lambda x: x["score"])
+    return best, history
 
 def generate_floor_plan(design):
     rooms = [
@@ -407,7 +432,6 @@ def generate_floor_plan(design):
         {"name": "Culinary Kitchen", "w": 4.5, "h": 4.0, "color": "#064e3b"},
         {"name": "Central Powder Room", "w": 3.0, "h": 2.5, "color": "#78350f"}
     ]
-
     for i in range(design["bedrooms"]):
         rooms.append({
             "name": f"Master Suite Suite {i+1}" if i == 0 else f"Standard Bedroom {i+1}",
@@ -415,11 +439,10 @@ def generate_floor_plan(design):
             "h": 4.0,
             "color": "#4c1d95"
         })
-
     return rooms
 
 # =========================================================
-# GRAPHICS CANVAS RENDERING ENGINE (Enhanced)
+# GRAPHICS CANVAS RENDERING ENGINE
 # =========================================================
 
 def render_native_blueprint(plan):
@@ -439,16 +462,16 @@ def render_native_blueprint(plan):
 # DESIGN METRICS AND DIAGNOSTICS
 # =========================================================
 
-def run_structural_review(d):
+def run_structural_review(d, config):
     alerts = []
     if d["structure"]["columns"] < 16:
-        alerts.append(("danger", "🔴 Structural Warning: Column distribution density thin for structural load transfers."))
-    if d["cost"] / d["area_sqm"] > 2300:
-        alerts.append(("warning", "🟡 Financial Alert: Material pricing model trending toward architectural premium thresholds."))
-    if d["structure"]["beams"] / d["structure"]["columns"] < 1.9:
-        alerts.append(("info", "🔵 Framing Optimization: Tight structural beam-to-column ratio; review spatial continuity maps."))
+        alerts.append(("danger", "🔴 Structural Warning: Column density too low for load transfer."))
+    if d["cost"] / d["area_sqm"] > config["target_cost_per_sqm"] * 1.4:
+        alerts.append(("warning", "🟡 Financial Alert: Cost per sqm exceeds target threshold."))
+    if d["structure"]["beams"] / d["structure"]["columns"] < config["ideal_beam_col_ratio"] * 0.9:
+        alerts.append(("info", "🔵 Framing Optimization: Beam-column ratio lower than ideal."))
     if not alerts:
-        alerts.append(("success", "🟢 Synthesis Checked: Structural logic matrices clear. Design optimized for construction documentation."))
+        alerts.append(("success", "🟢 Synthesis Checked: Structural logic matrices clear."))
     return alerts
 
 def calculate_material_takeoffs(d):
@@ -460,7 +483,7 @@ def calculate_material_takeoffs(d):
     ]
 
 # =========================================================
-# APPLICATION WORKSPACE INTERFACE
+# SIDEBAR WORKSPACE WITH EXTENDED OPTIONS
 # =========================================================
 
 st.sidebar.title("📐 Arc Studio")
@@ -470,20 +493,68 @@ st.sidebar.markdown("---")
 page = st.sidebar.radio(
     "Studio Workspace",
     ["Dashboard Control", "Design Synthesis Lab", "Memory Repositories"],
-    index=1  # default to Synthesis Lab for quick access
+    index=1
 )
 
 st.sidebar.markdown("---")
 
-with st.sidebar.expander("🛠️ Configure Arc Engine", expanded=False):
-    st.subheader("Synthesis Directives")
+# --- Project & Typology Configuration ---
+with st.sidebar.expander("🏗️ Project & Typology", expanded=True):
+    st.session_state.config["project_name"] = st.text_input("Project Name", value=st.session_state.config.get("project_name", "Unnamed Project"))
 
     all_typologies = []
     for sub_list in ARCH_DOMAINS.values():
         all_typologies.extend(sub_list)
-
     input_type = st.selectbox("Design Typology Target", all_typologies)
-    input_bedrooms = st.slider("Target Spatial Modules", 1, 8, 3)
+    input_bedrooms = st.slider("Target Spatial Modules (Bedrooms)", 1, 8, 3)
+
+# --- Genetic Algorithm Settings ---
+with st.sidebar.expander("🧬 Genetic Algorithm Tuning", expanded=False):
+    st.session_state.config["mutation_rate"] = st.slider("Mutation Probability", 0.0, 1.0, st.session_state.config.get("mutation_rate", 0.5), 0.05)
+    st.session_state.config["mutation_strength_col"] = st.slider("Column Mutation Range (±)", 0, 5, st.session_state.config.get("mutation_strength_col", 3))
+    st.session_state.config["mutation_strength_beam"] = st.slider("Beam Mutation Range (±)", 0, 10, st.session_state.config.get("mutation_strength_beam", 5))
+    st.session_state.config["elitism_frac"] = st.slider("Elitism Fraction", 0.1, 0.8, st.session_state.config.get("elitism_frac", 0.4), 0.05)
+    st.session_state.config["crossover_enabled"] = st.checkbox("Enable Crossover (Recombination)", value=st.session_state.config.get("crossover_enabled", False))
+    st.caption("When enabled, offspring are created by mixing two parents.")
+
+# --- Structural & Cost Constraints ---
+with st.sidebar.expander("🏛️ Structural Constraints", expanded=False):
+    st.session_state.config["ideal_beam_col_ratio"] = st.slider("Ideal Beam-Column Ratio", 1.5, 3.0, st.session_state.config.get("ideal_beam_col_ratio", 2.1), 0.1)
+    st.session_state.config["target_cost_per_sqm"] = st.slider("Target Cost per m² ($)", 1000, 3000, st.session_state.config.get("target_cost_per_sqm", 1650), 50)
+    st.markdown("**Fitness Weights**")
+    col_w1, col_w2, col_w3 = st.columns(3)
+    with col_w1:
+        st.session_state.config["fitness_weights"]["structural"] = st.number_input("Structural", 0.0, 3.0, st.session_state.config["fitness_weights"].get("structural", 1.0), 0.1, key="fw_struct")
+    with col_w2:
+        st.session_state.config["fitness_weights"]["cost"] = st.number_input("Cost", 0.0, 3.0, st.session_state.config["fitness_weights"].get("cost", 1.0), 0.1, key="fw_cost")
+    with col_w3:
+        st.session_state.config["fitness_weights"]["complexity"] = st.number_input("Complexity", 0.0, 3.0, st.session_state.config["fitness_weights"].get("complexity", 1.0), 0.1, key="fw_comp")
+
+# --- Display Options ---
+with st.sidebar.expander("🎨 Display & Units", expanded=False):
+    st.session_state.config["units"] = st.radio("Measurement System", ["metric", "imperial"], index=0 if st.session_state.config.get("units","metric")=="metric" else 1)
+    st.caption("(Imperial conversion not yet implemented in takeoffs)")
+
+# --- Quick Actions ---
+st.sidebar.markdown("---")
+if st.sidebar.button("💾 Save Current Config as Preset"):
+    preset_name = f"Preset_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    st.session_state.memory["config_presets"][preset_name] = dict(st.session_state.config)
+    save_memory()
+    log_event(f"Config preset '{preset_name}' saved.")
+    st.sidebar.success(f"Preset '{preset_name}' saved!")
+
+# Load presets
+preset_names = list(st.session_state.memory.get("config_presets", {}).keys())
+if preset_names:
+    selected_preset = st.sidebar.selectbox("Load Preset", ["None"] + preset_names)
+    if selected_preset != "None" and st.sidebar.button("Apply Preset"):
+        st.session_state.config.update(st.session_state.memory["config_presets"][selected_preset])
+        log_event(f"Applied preset '{selected_preset}'")
+        st.rerun()
+
+# Evolution loop parameters (global for Synthesis Lab)
+with st.sidebar.expander("⚡ Evolution Control", expanded=False):
     input_generations = st.slider("Genetic Epoch Cycles", 2, 20, 6)
     input_pop = st.slider("Population Bounds", 4, 30, 10)
 
@@ -502,7 +573,6 @@ if page == "Dashboard Control":
 
     st.markdown("---")
     st.subheader("Engine Operational Telemetry Logs")
-
     if mem["logs"]:
         for log in reversed(mem["logs"][-6:]):
             st.caption(f"⏱️ {log['time'][11:19]} — {log['msg']}")
@@ -525,11 +595,13 @@ elif page == "Design Synthesis Lab":
 
     if generate_now:
         with st.spinner("Processing structural mutations & resolving framing constraints..."):
+            # Use current sidebar config
             best_specimen, optimization_trend = run_evolutionary_loop(
                 input_type,
                 input_bedrooms,
                 input_generations,
-                input_pop
+                input_pop,
+                st.session_state.config
             )
 
             best_specimen["plan"] = generate_floor_plan(best_specimen)
@@ -554,7 +626,6 @@ elif page == "Design Synthesis Lab":
         trend = st.session_state.active_history
 
         st.subheader(f"⚡ Synthesis Output Profile: Archetype Specimen #{design['id']}")
-
         m1, m2, m3 = st.columns(3)
         m1.metric("Algorithmic Optimization Score", f"{design['score']} / 100")
         m2.metric("Gross Built Footprint Area", f"{design['area_sqm']} m²")
@@ -569,8 +640,7 @@ elif page == "Design Synthesis Lab":
 
         with tab_metrics:
             st.subheader("AI Structural Diagnostics")
-            for level, msg in run_structural_review(design):
-                # Render styled alerts
+            for level, msg in run_structural_review(design, st.session_state.config):
                 st.markdown(f'<div class="alert alert-{level}">{msg}</div>', unsafe_allow_html=True)
 
             st.markdown("---")
@@ -582,7 +652,7 @@ elif page == "Design Synthesis Lab":
             st.line_chart(trend)
 
     else:
-        st.info("No active production layout model loaded. Select configurations in the left expandable options tree and run the generator engine.")
+        st.info("No active production layout model loaded. Configure settings and run the generator engine.")
 
 # =========================================================
 # VIEWPORT: MEMORY REPOSITORIES
@@ -596,7 +666,6 @@ elif page == "Memory Repositories":
     st.json(mem)
 
     st.markdown("---")
-
     if st.button("🔴 Purge Arc Studio System Memory State", use_container_width=True):
         st.session_state.memory = DEFAULT_STATE.copy()
         st.session_state.active_design = None
