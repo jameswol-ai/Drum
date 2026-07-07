@@ -11,7 +11,7 @@ from datetime import datetime
 import uuid
 import engine  # our core module
 
-# ---------- Config & styling ----------
+# ---------- Config & page setup ----------
 st.set_page_config(page_title="Arc Studio Engine", page_icon="📐", layout="wide",
                    initial_sidebar_state="expanded")
 
@@ -26,8 +26,8 @@ DEFAULT_STATE = {
     "config_presets": {}
 }
 
-# ---------- Custom Architectural Studio UI Skin – Enhanced Aesthetic ----------
-st.markdown("""
+# ---------- CSS as a safe variable ----------
+CUSTOM_CSS = """
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600&family=Syne:wght@500;700;800&display=swap');
 
@@ -161,7 +161,9 @@ st.markdown("""
     ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
     ::-webkit-scrollbar-thumb:hover { background: #475569; }
 </style>
-""", unsafe_allow_html=True)
+"""
+
+st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 # ---------- Memory management ----------
 def load_memory():
@@ -179,7 +181,6 @@ def load_memory():
 
 def save_memory():
     try:
-        # Enforce history cap
         if len(st.session_state.memory["designs"]) > MAX_HISTORY:
             st.session_state.memory["designs"] = st.session_state.memory["designs"][-MAX_HISTORY:]
         with open(MEMORY_FILE, "w") as f:
@@ -194,16 +195,13 @@ def log_event(msg):
     })
     save_memory()
 
-# ---------- Session init ----------
+# ---------- Session initialisation ----------
 if "memory" not in st.session_state:
     st.session_state.memory = load_memory()
-
 if "active_design" not in st.session_state:
     st.session_state.active_design = None
-
 if "active_history" not in st.session_state:
     st.session_state.active_history = []
-
 if "config" not in st.session_state:
     st.session_state.config = {
         "project_name": "Unnamed Project",
@@ -228,7 +226,6 @@ st.sidebar.markdown("---")
 page = st.sidebar.radio("Studio Workspace",
                         ["Dashboard Control", "Design Synthesis Lab", "Memory Repositories"],
                         index=1)
-
 st.sidebar.markdown("---")
 
 with st.sidebar.expander("🏗️ Project & Typology", expanded=True):
