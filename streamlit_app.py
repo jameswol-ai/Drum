@@ -209,43 +209,47 @@ with st.sidebar:
         for dq in mem.get("daily_quests", []):
             pct = min(dq["progress"]/dq["target"], 1.0)
             st.write(f"{dq['desc']} ({dq['progress']}/{dq['target']})")
-            st.progress(pct)
+# ======================
+# LOGIN PAGE
+# ======================
+if not st.session_state.logged_in:
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        st.markdown("<div style='text-align:center;'><span style='font-size:3rem;'>🏗️</span></div>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align:center; font-weight:700; margin-bottom:0;'>DRUM Studio</h1>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align:center; color:#94A3B8; margin-top:0;'>Structural Engineering & Design</p>", unsafe_allow_html=True)
+        with st.form("auth_form", clear_on_submit=True):
+            uname = st.text_input("Username", placeholder="Enter your username")
+            pwd = st.text_input("Password", type="password", placeholder="Enter your password")
+            col1_btn, col2_btn = st.columns(2)
+            with col1_btn:
+                login_btn = st.form_submit_button("🔑 Login", use_container_width=True)
+            with col2_btn:
+                register_btn = st.form_submit_button("✨ Register", use_container_width=True)
 
-    st.markdown("---")
-    # Use page from session if set by quick buttons
-if "page" not in st.session_state:
-    st.session_state.page = "Command Center"
-page = st.radio("Navigate", ["Command Center", "Evolution Chamber", "Structural Analysis", "Archives"],
-                index=["Command Center", "Evolution Chamber", "Structural Analysis", "Archives"].index(st.session_state.page),
-                key="nav_radio")
-st.session_state.page = page
-    # Unit system toggle
-    unit_choice = st.radio("Unit System", ["metric", "imperial"], index=0, key="unit_radio")
-    st.session_state.unit_system = unit_choice
-
-    # Engineering params (collapsible)
-    with st.expander("🔧 Analysis Settings"):
-        st.session_state.eng_params["live_load"] = st.number_input("Live Load (kN/m²)", 1.0, 10.0, 2.5, 0.5, key="live_load")
-        st.session_state.eng_params["slab_thickness"] = st.number_input("Slab Thickness (m)", 0.1, 0.5, 0.2, 0.05, key="slab_thick")
-        st.session_state.eng_params["additional_dead"] = st.number_input("Additional Dead (kN/m²)", 0.0, 5.0, 1.0, 0.1, key="add_dead")
-        st.session_state.eng_params["glazing_ratio"] = st.slider("Glazing Ratio", 0.05, 0.8, 0.2, key="glaz_ratio")
-        st.session_state.eng_params["orientation"] = st.selectbox("Orientation", ["north","south","east","west"], key="orient")
-
-    # Game settings
-    with st.expander("⚙️ Game Settings"):
-        st.session_state.config["generations"] = st.slider("Generations", 2, 20, 5, key="gen_slider")
-        st.session_state.config["mutation_rate"] = st.slider("Mutation Rate", 0.0, 1.0, 0.1, 0.05, key="mut_rate")
-        st.session_state.config["population_size"] = st.number_input("Population Size", 2, 50, 10, key="pop_size")
-
-    if st.button("🚪 Logout"):
-        save_memory(username, mem)
-        for key in ["logged_in","username","user_data","memory","active_building"]:
-            if key in st.session_state:
-                if key == "memory":
-                    st.session_state[key] = DEFAULT_STATE.copy()
+            if login_btn:
+                user = authenticate(uname, pwd)
+                if user:
+                    st.session_state.logged_in = True
+                    st.session_state.username = uname
+                    st.session_state.user_data = user
+                    mem = load_memory(uname)
+                    init_quests(uname, mem)
+                    st.session_state.memory = mem
+                    st.rerun()
                 else:
-                    st.session_state[key] = None
-        st.rerun()
+                    st.error("Invalid credentials.")
+            if register_btn:
+                if not uname or not pwd:
+                    st.error("Fill all fields.")
+                else:
+                    try:
+                        create_user(uname, pwd)
+                        st.success("Account created! You can now log in.")
+                    except ValueError as e:
+                        st.error(str(e))
+    st.stop()
 
 # ======================
 # ======================
