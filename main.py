@@ -1,5 +1,5 @@
 # main.py
-# Helper functions for DRUM – user management, memory, quests, etc.
+# Game helpers for DRUM – user management, memory, quests, building, rhythm
 import json
 import hashlib
 import random
@@ -176,11 +176,9 @@ def generate_rhythm(building):
     steps = 16
     score_norm = building.score / 100
     rooms = len(building.plan)
-
     kick = [1 if i % 4 == 0 else 0 for i in range(steps)]
     snare = [1 if i % 4 == 2 else 0 for i in range(steps)]
     hihat = [1 if i % 2 == 0 else 0 for i in range(steps)]
-
     mutation = 0.3 * score_norm
     for i in range(steps):
         if random.random() < mutation:
@@ -189,7 +187,6 @@ def generate_rhythm(building):
             snare[i] = 1 - snare[i]
         if random.random() < mutation:
             hihat[i] = 1 - hihat[i]
-
     for _ in range(rooms):
         pos = random.randint(0, steps-1)
         inst = random.choice(["kick", "snare", "hihat"])
@@ -199,7 +196,6 @@ def generate_rhythm(building):
             snare[pos] = 1
         else:
             hihat[pos] = 1
-
     return {
         "bpm": 120 + int(score_norm * 30),
         "steps": steps,
@@ -212,7 +208,6 @@ def generate_rhythm(building):
 DAILY_TEMPLATE = [
     {"id": "daily_evolve", "desc": "Complete one evolution", "target": 1, "progress": 0, "reward_xp": 30},
 ]
-
 QUEST_TEMPLATE = [
     {"id": "evolve_3", "desc": "Evolve 3 buildings", "target": 3, "progress": 0, "reward_xp": 50},
     {"id": "room_10", "desc": "Create a building with ≥10 rooms", "target": 1, "progress": 0, "reward_badge": "room_master"},
