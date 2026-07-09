@@ -15,10 +15,10 @@ import random
 
 # ---------- Engineering module ----------
 from engineering import (
+    calculate_total_area,
     compute_floor_loads,
     check_structural_integrity,
     estimate_cost,
-    calculate_total_area,
     calculate_energy_score,
 )
 
@@ -33,7 +33,6 @@ DATA_DIR.mkdir(exist_ok=True)
 
 # ---------- Game constants ----------
 XP_PER_LEVEL = 100
-LEVEL_UP_XP_BASE = 100
 
 def xp_for_level(level):
     return level * XP_PER_LEVEL
@@ -207,7 +206,7 @@ def simulate_design_evolution(config):
     return best, trend
 
 # =============================
-# GAME UI HELPERS (unchanged)
+# GAME UI HELPERS
 # =============================
 def show_xp_bar(user):
     level = user["level"]
@@ -267,10 +266,91 @@ if "logged_in" not in st.session_state:
     st.session_state.config = {"generations": 5, "style": "minimal"}
 
 # =============================
-# CUSTOM CSS (unchanged)
+# CUSTOM CSS (exact original from your code)
 # =============================
-GAME_CSS = """..."""   # (keep the same CSS as in your original file)
+GAME_CSS = """
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
+html, body, [data-testid="stAppViewContainer"], .stApp {
+    font-family: 'Press Start 2P', monospace;
+    background: #0b0f19;
+    color: #e2e8f0;
+}
+/* Animated starfield background */
+.stApp::before {
+    content: "";
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: radial-gradient(ellipse at bottom, #1b2735 0%, #090a0f 100%);
+    z-index: -1;
+}
+/* Twinkling stars (CSS only) */
+@keyframes move-twink-back {
+    from {background-position:0 0;}
+    to {background-position:-10000px 5000px;}
+}
+.stApp::after {
+    content: "";
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Ccircle cx='10' cy='20' r='1.5' fill='%23fff' opacity='0.6'/%3E%3Ccircle cx='50' cy='80' r='1' fill='%23fff' opacity='0.4'/%3E%3Ccircle cx='90' cy='40' r='0.8' fill='%23fff' opacity='0.7'/%3E%3Ccircle cx='130' cy='120' r='1.2' fill='%23fff' opacity='0.5'/%3E%3Ccircle cx='170' cy='160' r='0.6' fill='%23fff' opacity='0.8'/%3E%3C/svg%3E") repeat;
+    animation: move-twink-back 200s linear infinite;
+    z-index: -1;
+    opacity: 0.3;
+}
+h1, h2, h3 {
+    color: #f1f5f9;
+    text-shadow: 0 0 10px rgba(99,102,241,0.5);
+}
+section[data-testid="stSidebar"] {
+    background: linear-gradient(145deg, rgba(15,23,42,0.98), rgba(12,18,30,0.95));
+    backdrop-filter: blur(20px);
+    border-right: 1px solid #4338ca;
+}
+.stButton > button {
+    font-family: 'Press Start 2P', monospace;
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 0.6rem 1.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    box-shadow: 0 0 12px rgba(99,102,241,0.6);
+    transition: all 0.2s;
+}
+.stButton > button:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 20px rgba(139,92,246,0.9);
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+}
+.stButton > button:active {
+    transform: scale(0.98);
+}
+div[data-testid="stMetric"] {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 1rem;
+    font-family: 'Press Start 2P', monospace;
+}
+.stTextInput > div > div > input {
+    background: #1e293b;
+    color: #f8fafc;
+    border: 2px solid #4338ca;
+    border-radius: 8px;
+    padding: 8px;
+}
+.stSelectbox > div > div > select {
+    background: #1e293b;
+    color: #f8fafc;
+}
+div.stMarkdown p {
+    font-family: 'Press Start 2P', monospace;
+}
+</style>
+"""
 st.markdown(GAME_CSS, unsafe_allow_html=True)
 
 # =============================
@@ -339,7 +419,7 @@ with st.sidebar:
     """, unsafe_allow_html=True)
     show_xp_bar(user_data)
     st.markdown("---")
-    # Navigation now includes Engineering Lab
+    # Navigation includes Engineering Lab
     page = st.radio("Navigate", ["Command Center", "Evolution Chamber", "Engineering Lab", "Archives"])
 
     if user_data.get("role") == "admin":
@@ -441,7 +521,7 @@ elif page == "Evolution Chamber":
     else:
         st.info("Press EVOLVE! or load a demo to create a building.")
 
-elif page == "Engineering Lab":   # <<<< NEW PAGE
+elif page == "Engineering Lab":
     st.title("🔧 Engineering Lab")
     if st.session_state.active_building is None:
         st.warning("No active building. Evolve or load a demo first.")
@@ -453,20 +533,17 @@ elif page == "Engineering Lab":   # <<<< NEW PAGE
         st.markdown("---")
         st.subheader("📐 Structural Analysis")
 
-        # Basic dimensions
         total_area = calculate_total_area(plan)
-        st.metric("Total Floor Area", f"{total_area:.1f} m²")
-
-        # Loads
         total_load = compute_floor_loads(plan)
+        st.metric("Total Floor Area", f"{total_area:.1f} m²")
         st.metric("Total Floor Load (DL+LL)", f"{total_load:.1f} kN")
 
-        # Integrity check
         integrity = check_structural_integrity(plan)
         col1, col2, col3 = st.columns(3)
         col1.metric("Max Span", f"{integrity['max_span_m']} m")
         col2.metric("Suggested Beam", integrity['suggested_beam'])
-        col3.metric("Safety Factor", f"{integrity['safety_factor']:.2f}", delta="Pass" if integrity['pass'] else "Fail")
+        col3.metric("Safety Factor", f"{integrity['safety_factor']:.2f}",
+                    delta="Pass" if integrity['pass'] else "Fail")
         if not integrity['pass']:
             st.error("⚠️ Span too large. Consider adding more columns.")
         else:
@@ -475,28 +552,28 @@ elif page == "Engineering Lab":   # <<<< NEW PAGE
         st.markdown("---")
         st.subheader("💰 Cost Estimation")
         costs = estimate_cost(plan)
-        # Create a nice table
-        cost_df = {
+        cost_table = {
             "Item": ["Concrete", "Steel", "Glass", "Labor", "**TOTAL**"],
-            "Cost (USD)": [f"${costs['concrete']:,.2f}",
-                           f"${costs['steel']:,.2f}",
-                           f"${costs['glass']:,.2f}",
-                           f"${costs['labor']:,.2f}",
-                           f"**${costs['total']:,.2f}**"]
+            "Cost (USD)": [
+                f"${costs['concrete']:,.2f}",
+                f"${costs['steel']:,.2f}",
+                f"${costs['glass']:,.2f}",
+                f"${costs['labor']:,.2f}",
+                f"**${costs['total']:,.2f}**"
+            ]
         }
-        st.table(cost_df)
+        st.table(cost_table)
 
-        # Energy
         st.markdown("---")
         st.subheader("⚡ Energy Efficiency")
         orientation = st.selectbox("Building Orientation", ["north", "south", "east", "west"], index=1)
         energy = calculate_energy_score(plan, orientation)
-        st.metric("Energy Efficiency Score", f"{energy}/100", delta=None)
-        st.progress(energy/100)
+        st.metric("Energy Efficiency Score", f"{energy}/100")
+        st.progress(energy / 100)
 
-        # Optional: add a button to save this analysis as a log event
         if st.button("📄 Log Analysis Report"):
-            log_event(username, f"Engineering analysis for {building.name}: load {total_load:.1f} kN, cost ${costs['total']:,.2f}")
+            log_event(username,
+                      f"Engineering analysis for {building.name}: load {total_load:.1f} kN, cost ${costs['total']:,.2f}")
             st.success("Report logged.")
 
 else:  # Archives
