@@ -7,9 +7,10 @@ def structural_analysis_page():
     st.caption("Design & check beams, columns, slabs, foundations, connections, seismic, wind")
 
     tabs = st.tabs([
-        "📐 Beams", "🧱 Columns", "🔲 Slabs", "🌍 Foundations",
-        "🔗 Connections", "🌪️ Seismic/Wind", "🏛️ Walls & Finishes"
-    ])
+    "📐 Beams", "🧱 Columns", "🔲 Slabs", "🌍 Foundations",
+    "🔗 Connections", "🌪️ Seismic/Wind", "🏛️ Walls & Finishes",
+    "📌 Piles", "⚡ Prestressed", "📄 Export/Report"
+])
 
     # ---- BEAMS ----
     with tabs[0]:
