@@ -443,7 +443,7 @@ if "logged_in" not in st.session_state:
     st.session_state.memory = DEFAULT_STATE.copy()
     st.session_state.active_building = None
     st.session_state.config = {"generations": 5, "style": "minimal"}
-    # Engineering parameters (will be used in Engineering Lab)
+    # Engineering parameter defaults
     st.session_state.eng_params = {
         "live_load": 2.5,
         "slab_thickness": 0.2,
@@ -482,7 +482,7 @@ if not st.session_state.logged_in:
                     st.session_state.username = username
                     st.session_state.user_data = user
                     mem = load_memory(username)
-                    init_quests(mem)  # will save internally
+                    init_quests(mem)
                     st.session_state.memory = mem
                     if mem["sessions"]:
                         last = mem["sessions"][-1]
@@ -510,7 +510,6 @@ username = st.session_state.username
 user_data = st.session_state.user_data
 mem = st.session_state.memory
 
-# Ensure quests are initialised
 init_quests(mem)
 
 # --- Sidebar ---
@@ -523,7 +522,6 @@ with st.sidebar:
     """, unsafe_allow_html=True)
     show_xp_bar(user_data)
 
-    # Quests display
     st.markdown("---")
     st.subheader("📜 Quests")
     for q in mem.get("quests", []):
@@ -645,10 +643,9 @@ elif page == "Evolution Chamber":
         st.info("Press EVOLVE! or load a demo to create a building.")
 
 elif page == "Engineering Lab":
-elif page == "Engineering Lab":
     st.title("🔧 Engineering Lab – Interactive Design Check")
 
-    # If no active building, offer a default plan so the tool is immediately usable
+    # If no active building, provide a way to load a default plan
     if st.session_state.active_building is None:
         st.warning("No active building. Load a default plan or go to Evolution Chamber to create one.")
         if st.button("📦 Load Default Plan for Analysis"):
@@ -658,28 +655,26 @@ elif page == "Engineering Lab":
             log_event(username, mem, "Loaded default plan for engineering")
             save_memory(username, mem)
             st.rerun()
-        # Show a simplified empty state (optional)
-        st.stop()  # stop here until a plan is loaded; remove if you want to show inputs anyway
-    else:
-        # If we already have a building, allow loading a different default one as well
-        col_actions = st.columns([3,1])
-        with col_actions[0]:
-            st.caption("Current building is used for analysis. You can load a different sample.")
-        with col_actions[1]:
-            if st.button("🔄 Load Different Sample"):
-                demo = Building(name="Sample", score=85)
-                generate_plan(demo)
-                st.session_state.active_building = demo
-                st.rerun()
+        st.stop()  # stop here until a plan is loaded
 
-    # From this point onward, building is guaranteed to exist
+    # If we have a building, optionally allow loading a different sample
+    col_actions = st.columns([3,1])
+    with col_actions[0]:
+        st.caption("Current building is used for analysis.")
+    with col_actions[1]:
+        if st.button("🔄 Load Different Sample"):
+            demo = Building(name="Sample", score=85)
+            generate_plan(demo)
+            st.session_state.active_building = demo
+            st.rerun()
+
     building = st.session_state.active_building
     plan = building.plan
     show_building(building, "Current Design")
 
     st.markdown("---")
 
-    # ---------- INPUT PARAMETERS (collapsible, but start expanded for visibility) ----------
+    # ---------- INPUT PARAMETERS (expanded by default) ----------
     with st.expander("⚙️ Load & Structural Assumptions", expanded=True):
         colL1, colL2, colL3 = st.columns(3)
         with colL1:
@@ -787,115 +782,6 @@ elif page == "Engineering Lab":
         log_event(username, mem,
                   f"Eng: {building.name} Load {total_load:.1f}kN, Cost ${costs['total']:,.2f}, Energy {energy}/100")
         st.success("Analysis logged.")
-
-        # ---------- INPUT PARAMETERS (collapsible) ----------
-        with st.expander("⚙️ Load & Structural Assumptions", expanded=False):
-            colL1, colL2, colL3 = st.columns(3)
-            with colL1:
-                live_load = st.number_input("Live Load (kN/m²)", min_value=1.0, max_value=10.0,
-                                           value=st.session_state.eng_params["live_load"], step=0.5)
-                st.session_state.eng_params["live_load"] = live_load
-            with colL2:
-                slab_t = st.number_input("Slab Thickness (m)", min_value=0.1, max_value=0.5,
-                                         value=st.session_state.eng_params["slab_thickness"], step=0.05)
-                st.session_state.eng_params["slab_thickness"] = slab_t
-            with colL3:
-                add_dead = st.number_input("Additional Dead Load (kN/m²)", min_value=0.0, max_value=5.0,
-                                          value=st.session_state.eng_params["additional_dead"], step=0.1)
-                st.session_state.eng_params["additional_dead"] = add_dead
-
-        with st.expander("💰 Cost Rates", expanded=False):
-            colC1, colC2, colC3, colC4 = st.columns(4)
-            with colC1:
-                conc_cost = st.number_input("Concrete ($/m²)", min_value=50, max_value=500,
-                                           value=st.session_state.eng_params["concrete_cost"], step=10)
-                st.session_state.eng_params["concrete_cost"] = conc_cost
-            with colC2:
-                steel_cost = st.number_input("Steel ($/m)", min_value=10, max_value=200,
-                                            value=st.session_state.eng_params["steel_cost"], step=5)
-                st.session_state.eng_params["steel_cost"] = steel_cost
-            with colC3:
-                glass_cost = st.number_input("Glass ($/m²)", min_value=50, max_value=400,
-                                            value=st.session_state.eng_params["glass_cost"], step=10)
-                st.session_state.eng_params["glass_cost"] = glass_cost
-            with colC4:
-                labor_cost = st.number_input("Labor ($/m²)", min_value=20, max_value=300,
-                                            value=st.session_state.eng_params["labor_cost"], step=10)
-                st.session_state.eng_params["labor_cost"] = labor_cost
-
-        with st.expander("⚡ Energy Parameters", expanded=False):
-            colE1, colE2 = st.columns(2)
-            with colE1:
-                glazing = st.slider("Glazing Ratio", 0.05, 0.80,
-                                    st.session_state.eng_params["glazing_ratio"], 0.01)
-                st.session_state.eng_params["glazing_ratio"] = glazing
-            with colE2:
-                orient = st.selectbox("Orientation", ["north", "south", "east", "west"],
-                                      index=["north","south","east","west"].index(
-                                          st.session_state.eng_params["orientation"]))
-                st.session_state.eng_params["orientation"] = orient
-
-        st.markdown("---")
-
-        # ---------- COMPUTE RESULTS ----------
-        total_area = calculate_total_area(plan)
-        total_load = compute_floor_loads(
-            plan,
-            live_load_kN_per_m2=st.session_state.eng_params["live_load"],
-            slab_thickness_m=st.session_state.eng_params["slab_thickness"],
-            additional_dead_load_kN_per_m2=st.session_state.eng_params["additional_dead"]
-        )
-        integrity = check_structural_integrity(plan)
-        costs = estimate_cost(plan, costs={
-            "concrete_per_m2": st.session_state.eng_params["concrete_cost"],
-            "steel_per_m": st.session_state.eng_params["steel_cost"],
-            "glass_per_m2": st.session_state.eng_params["glass_cost"],
-            "labor_per_m2": st.session_state.eng_params["labor_cost"],
-        })
-        energy = calculate_energy_score(
-            plan,
-            orientation=st.session_state.eng_params["orientation"],
-            glazing_ratio=st.session_state.eng_params["glazing_ratio"]
-        )
-
-        # ---------- DISPLAY OUTPUT ----------
-        st.subheader("📐 Structural Analysis")
-        colM1, colM2 = st.columns(2)
-        colM1.metric("Total Floor Area", f"{total_area:.1f} m²")
-        colM2.metric("Total Floor Load (DL+LL)", f"{total_load:.1f} kN")
-
-        colS1, colS2, colS3 = st.columns(3)
-        colS1.metric("Max Span", f"{integrity['max_span_m']} m")
-        colS2.metric("Suggested Beam", integrity['suggested_beam'])
-        colS3.metric("Safety Factor", f"{integrity['safety_factor']:.2f}",
-                     delta="Pass" if integrity['pass'] else "Fail")
-        if not integrity['pass']:
-            st.error("⚠️ Span too large. Add intermediate columns or reduce room sizes.")
-        else:
-            st.success("✅ Structural integrity check passed.")
-
-        st.subheader("💰 Cost Estimation")
-        cost_table = {
-            "Item": ["Concrete", "Steel", "Glass", "Labor", "**TOTAL**"],
-            "Cost (USD)": [
-                f"${costs['concrete']:,.2f}",
-                f"${costs['steel']:,.2f}",
-                f"${costs['glass']:,.2f}",
-                f"${costs['labor']:,.2f}",
-                f"**${costs['total']:,.2f}**"
-            ]
-        }
-        st.table(cost_table)
-
-        st.subheader("⚡ Energy Efficiency")
-        colEn1, colEn2 = st.columns(2)
-        colEn1.metric("Energy Score", f"{energy}/100")
-        colEn2.progress(energy/100)
-
-        if st.button("📄 Log This Analysis"):
-            log_event(username, mem,
-                      f"Eng: {building.name} Load {total_load:.1f}kN, Cost ${costs['total']:,.2f}, Energy {energy}/100")
-            st.success("Analysis logged.")
 
 else:  # Archives
     st.title("🗄️ Archives")
