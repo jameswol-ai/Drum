@@ -513,7 +513,7 @@ if page == "Project Dashboard":
             cube = new THREE.Mesh(geometry, material);
             cube.position.set({x + w/2}, {h/2}, {z + d/2});
             scene.add(cube);
-            """
+            
                 three_js_html = f"""
             <html>
             <head>
