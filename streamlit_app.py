@@ -1,7 +1,7 @@
 # streamlit_app.py
 # =============================
 # DRUM – Design & Rhythm Utility Machine
-# Game‑style UI + engineering analysis
+# Game‑style UI + interactive engineering analysis
 # =============================
 
 import streamlit as st
@@ -20,11 +20,21 @@ from engineering import (
     check_structural_integrity,
     estimate_cost,
     calculate_energy_score,
+    DEFAULT_COSTS,
 )
 
-# ---------- Page config ----------
-st.set_page_config(page_title="DRUM Studio", page_icon="🥁", layout="wide",
-                   initial_sidebar_state="expanded")
+# ---------- Page config (hide default Streamlit menu) ----------
+st.set_page_config(
+    page_title="DRUM Studio",
+    page_icon="🥁",
+    layout="wide",
+    initial_sidebar_state="expanded",
+    menu_items={
+        "Get Help": None,
+        "Report a bug": None,
+        "About": None,
+    }
+)
 
 # ---------- File paths ----------
 USER_FILE = Path("users.json")
@@ -142,7 +152,7 @@ def log_event(username: str, msg: str):
     save_memory(username)
 
 # =============================
-# DOMAIN LOGIC
+# DOMAIN LOGIC (unchanged)
 # =============================
 DEFAULT_STATE = {
     "buildings": [],
@@ -206,7 +216,7 @@ def simulate_design_evolution(config):
     return best, trend
 
 # =============================
-# GAME UI HELPERS
+# GAME UI HELPERS (unchanged)
 # =============================
 def show_xp_bar(user):
     level = user["level"]
@@ -264,20 +274,36 @@ if "logged_in" not in st.session_state:
     st.session_state.memory = DEFAULT_STATE.copy()
     st.session_state.active_building = None
     st.session_state.config = {"generations": 5, "style": "minimal"}
+    # Engineering parameter defaults (will be used in Engineering Lab)
+    st.session_state.eng_params = {
+        "live_load": 2.5,
+        "slab_thickness": 0.2,
+        "additional_dead": 1.0,
+        "concrete_cost": 250,
+        "steel_cost": 50,
+        "glass_cost": 150,
+        "labor_cost": 100,
+        "glazing_ratio": 0.2,
+        "orientation": "south",
+    }
 
 # =============================
-# CUSTOM CSS (exact original from your code)
+# CUSTOM CSS (hides Streamlit default menu & footer)
 # =============================
 GAME_CSS = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+/* Hide Streamlit header/footer */
+#MainMenu {visibility: hidden !important;}
+footer {visibility: hidden !important;}
+header {visibility: hidden !important;}
 
 html, body, [data-testid="stAppViewContainer"], .stApp {
     font-family: 'Press Start 2P', monospace;
     background: #0b0f19;
     color: #e2e8f0;
 }
-/* Animated starfield background */
 .stApp::before {
     content: "";
     position: fixed;
@@ -285,7 +311,6 @@ html, body, [data-testid="stAppViewContainer"], .stApp {
     background: radial-gradient(ellipse at bottom, #1b2735 0%, #090a0f 100%);
     z-index: -1;
 }
-/* Twinkling stars (CSS only) */
 @keyframes move-twink-back {
     from {background-position:0 0;}
     to {background-position:-10000px 5000px;}
@@ -335,7 +360,7 @@ div[data-testid="stMetric"] {
     padding: 1rem;
     font-family: 'Press Start 2P', monospace;
 }
-.stTextInput > div > div > input {
+.stTextInput > div > div > input, .stNumberInput > div > div > input {
     background: #1e293b;
     color: #f8fafc;
     border: 2px solid #4338ca;
@@ -419,14 +444,13 @@ with st.sidebar:
     """, unsafe_allow_html=True)
     show_xp_bar(user_data)
     st.markdown("---")
-    # Navigation includes Engineering Lab
     page = st.radio("Navigate", ["Command Center", "Evolution Chamber", "Engineering Lab", "Archives"])
 
     if user_data.get("role") == "admin":
         admin_page = st.radio("Admin", ["User Management"], key="admin_nav")
 
     st.markdown("---")
-    with st.expander("⚙️ Settings"):
+    with st.expander("⚙️ Game Settings"):
         st.session_state.config["generations"] = st.slider("Generations", 2, 20, st.session_state.config["generations"])
         st.session_state.config["style"] = st.selectbox("Style", ["minimal", "bold", "organic"])
 
@@ -522,36 +546,104 @@ elif page == "Evolution Chamber":
         st.info("Press EVOLVE! or load a demo to create a building.")
 
 elif page == "Engineering Lab":
-    st.title("🔧 Engineering Lab")
+    st.title("🔧 Engineering Lab – Interactive Design Check")
+
     if st.session_state.active_building is None:
-        st.warning("No active building. Evolve or load a demo first.")
+        st.warning("No active building. Go to Evolution Chamber and create one.")
     else:
         building = st.session_state.active_building
         plan = building.plan
         show_building(building, "Current Design")
 
         st.markdown("---")
-        st.subheader("📐 Structural Analysis")
 
-        total_area = calculate_total_area(plan)
-        total_load = compute_floor_loads(plan)
-        st.metric("Total Floor Area", f"{total_area:.1f} m²")
-        st.metric("Total Floor Load (DL+LL)", f"{total_load:.1f} kN")
+        # ---------- INPUT PARAMETERS (collapsible) ----------
+        with st.expander("⚙️ Load & Structural Assumptions", expanded=False):
+            colL1, colL2, colL3 = st.columns(3)
+            with colL1:
+                live_load = st.number_input("Live Load (kN/m²)", min_value=1.0, max_value=10.0,
+                                           value=st.session_state.eng_params["live_load"], step=0.5)
+                st.session_state.eng_params["live_load"] = live_load
+            with colL2:
+                slab_t = st.number_input("Slab Thickness (m)", min_value=0.1, max_value=0.5,
+                                         value=st.session_state.eng_params["slab_thickness"], step=0.05)
+                st.session_state.eng_params["slab_thickness"] = slab_t
+            with colL3:
+                add_dead = st.number_input("Additional Dead Load (kN/m²)", min_value=0.0, max_value=5.0,
+                                          value=st.session_state.eng_params["additional_dead"], step=0.1)
+                st.session_state.eng_params["additional_dead"] = add_dead
 
-        integrity = check_structural_integrity(plan)
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Max Span", f"{integrity['max_span_m']} m")
-        col2.metric("Suggested Beam", integrity['suggested_beam'])
-        col3.metric("Safety Factor", f"{integrity['safety_factor']:.2f}",
-                    delta="Pass" if integrity['pass'] else "Fail")
-        if not integrity['pass']:
-            st.error("⚠️ Span too large. Consider adding more columns.")
-        else:
-            st.success("✅ Structural integrity acceptable.")
+        with st.expander("💰 Cost Rates", expanded=False):
+            colC1, colC2, colC3, colC4 = st.columns(4)
+            with colC1:
+                conc_cost = st.number_input("Concrete ($/m²)", min_value=50, max_value=500,
+                                           value=st.session_state.eng_params["concrete_cost"], step=10)
+                st.session_state.eng_params["concrete_cost"] = conc_cost
+            with colC2:
+                steel_cost = st.number_input("Steel ($/m)", min_value=10, max_value=200,
+                                            value=st.session_state.eng_params["steel_cost"], step=5)
+                st.session_state.eng_params["steel_cost"] = steel_cost
+            with colC3:
+                glass_cost = st.number_input("Glass ($/m²)", min_value=50, max_value=400,
+                                            value=st.session_state.eng_params["glass_cost"], step=10)
+                st.session_state.eng_params["glass_cost"] = glass_cost
+            with colC4:
+                labor_cost = st.number_input("Labor ($/m²)", min_value=20, max_value=300,
+                                            value=st.session_state.eng_params["labor_cost"], step=10)
+                st.session_state.eng_params["labor_cost"] = labor_cost
+
+        with st.expander("⚡ Energy Parameters", expanded=False):
+            colE1, colE2 = st.columns(2)
+            with colE1:
+                glazing = st.slider("Glazing Ratio", 0.05, 0.80,
+                                    st.session_state.eng_params["glazing_ratio"], 0.01)
+                st.session_state.eng_params["glazing_ratio"] = glazing
+            with colE2:
+                orient = st.selectbox("Orientation", ["north", "south", "east", "west"],
+                                      index=["north","south","east","west"].index(
+                                          st.session_state.eng_params["orientation"]))
+                st.session_state.eng_params["orientation"] = orient
 
         st.markdown("---")
+
+        # ---------- COMPUTE RESULTS using current parameters ----------
+        total_area = calculate_total_area(plan)
+        total_load = compute_floor_loads(
+            plan,
+            live_load_kN_per_m2=st.session_state.eng_params["live_load"],
+            slab_thickness_m=st.session_state.eng_params["slab_thickness"],
+            additional_dead_load_kN_per_m2=st.session_state.eng_params["additional_dead"]
+        )
+        integrity = check_structural_integrity(plan)
+        costs = estimate_cost(plan, costs={
+            "concrete_per_m2": st.session_state.eng_params["concrete_cost"],
+            "steel_per_m": st.session_state.eng_params["steel_cost"],
+            "glass_per_m2": st.session_state.eng_params["glass_cost"],
+            "labor_per_m2": st.session_state.eng_params["labor_cost"],
+        })
+        energy = calculate_energy_score(
+            plan,
+            orientation=st.session_state.eng_params["orientation"],
+            glazing_ratio=st.session_state.eng_params["glazing_ratio"]
+        )
+
+        # ---------- DISPLAY OUTPUT ----------
+        st.subheader("📐 Structural Analysis")
+        colM1, colM2 = st.columns(2)
+        colM1.metric("Total Floor Area", f"{total_area:.1f} m²")
+        colM2.metric("Total Floor Load (DL+LL)", f"{total_load:.1f} kN")
+
+        colS1, colS2, colS3 = st.columns(3)
+        colS1.metric("Max Span", f"{integrity['max_span_m']} m")
+        colS2.metric("Suggested Beam", integrity['suggested_beam'])
+        colS3.metric("Safety Factor", f"{integrity['safety_factor']:.2f}",
+                     delta="Pass" if integrity['pass'] else "Fail")
+        if not integrity['pass']:
+            st.error("⚠️ Span too large. Add intermediate columns or reduce room sizes.")
+        else:
+            st.success("✅ Structural integrity check passed.")
+
         st.subheader("💰 Cost Estimation")
-        costs = estimate_cost(plan)
         cost_table = {
             "Item": ["Concrete", "Steel", "Glass", "Labor", "**TOTAL**"],
             "Cost (USD)": [
@@ -564,17 +656,15 @@ elif page == "Engineering Lab":
         }
         st.table(cost_table)
 
-        st.markdown("---")
         st.subheader("⚡ Energy Efficiency")
-        orientation = st.selectbox("Building Orientation", ["north", "south", "east", "west"], index=1)
-        energy = calculate_energy_score(plan, orientation)
-        st.metric("Energy Efficiency Score", f"{energy}/100")
-        st.progress(energy / 100)
+        colEn1, colEn2 = st.columns(2)
+        colEn1.metric("Energy Score", f"{energy}/100")
+        colEn2.progress(energy/100)
 
-        if st.button("📄 Log Analysis Report"):
+        if st.button("📄 Log This Analysis"):
             log_event(username,
-                      f"Engineering analysis for {building.name}: load {total_load:.1f} kN, cost ${costs['total']:,.2f}")
-            st.success("Report logged.")
+                      f"Eng: {building.name} Load {total_load:.1f}kN, Cost ${costs['total']:,.2f}, Energy {energy}/100")
+            st.success("Analysis logged.")
 
 else:  # Archives
     st.title("🗄️ Archives")
