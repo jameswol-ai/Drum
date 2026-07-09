@@ -524,7 +524,6 @@ with tabs[9]:
 # ======================
 # PAGE: ARCHIVES
 # ======================
-else:  # Archives
     st.title("🗄️ Archives")
     if mem["buildings"]:
         for i, bdict in enumerate(reversed(mem["buildings"])):
