@@ -390,8 +390,11 @@ elif page == "Structural Analysis":
     st.title("🏗️ Structural Analysis Workstation")
     st.caption("Design & check beams, columns, slabs, foundations, walls & finishes to Eurocodes")
 
-    tabs = st.tabs(["📐 Beams", "🧱 Columns", "🔲 Slabs", "🌍 Foundations", "🏛️ Walls & Finishes"])
-
+    tabs = st.tabs([
+    "📐 Beams", "🧱 Columns", "🔲 Slabs", "🌍 Foundations",
+    "🏛️ Walls & Finishes", "📌 Piles", "⚡ Prestressed",
+    "🧱 Retaining Wall", "🔺 Truss", "📄 Export/Report"
+])
     # ---- BEAMS ----
     with tabs[0]:
         st.subheader("Beam Design")
@@ -507,6 +510,33 @@ with tabs[7]:
         st.metric("Allowable Capacity", f"{res['Q_all_kN']} kN")
         st.write(f"Ultimate capacity: {res['Q_ult_kN']} kN")
         st.write(f"Shaft resistance: {res['shaft_kN']} kN, Base: {res['base_kN']} kN")
+
+# ---- RETAINING WALL (new) ----
+with tabs[7]:
+    st.subheader("Cantilever Retaining Wall (Simplified)")
+    H = st.number_input("Wall height (m)", 1.0, 10.0, 3.0, key="rw_H")
+    gamma = st.number_input("Soil unit weight (kN/m³)", 15.0, 22.0, 18.0, key="rw_gamma")
+    phi = st.number_input("Friction angle (°)", 20.0, 45.0, 30.0, key="rw_phi")
+    c = st.number_input("Cohesion (kPa)", 0.0, 50.0, 0.0, key="rw_c")
+    surcharge = st.number_input("Surcharge (kPa)", 0.0, 20.0, 0.0, key="rw_surch")
+    wall_friction = st.number_input("Base friction coefficient", 0.3, 0.8, 0.6, key="rw_fric")
+    if st.button("Check Stability", key="rw_check"):
+        res = retaining_wall_stability(H, gamma, phi, c, surcharge, wall_friction)
+        if res["pass"]:
+            st.success("✅ Wall stable")
+        else:
+            st.error("❌ Stability check failed")
+        st.write(f"Active thrust: {res['Pa_kN']} kN/m")
+        st.write(f"Overturning SF: {res['F_overt']}, Sliding SF: {res['F_sliding']}")
+
+# ---- TRUSS (new) ----
+with tabs[8]:
+    st.subheader("2D Truss Solver (coming soon)")
+    st.info("This module will perform method-of-joints analysis. Enter nodes, members, loads.")
+    # Placeholder for future implementation
+    if st.button("Solve Truss (demo)", key="truss_solve"):
+        res = truss_method_of_joints(None, None, None, None)
+        st.json(res)
 
 # ---- EXPORT / REPORT ----
 with tabs[9]:
