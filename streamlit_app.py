@@ -1,5 +1,5 @@
 # streamlit_app.py
-# DRUM Studio – Professional Structural Analysis Workstation (full imperial/metric)
+# DRUM Studio – Professional Structural Analysis Workstation
 import streamlit as st
 import uuid
 from datetime import datetime
@@ -84,40 +84,38 @@ h1, h2, h3 { color: #F8FAFC; font-weight: 600; }
 </style>
 """, unsafe_allow_html=True)
 
-# ---------- Helper: convert input to SI based on unit system ----------
+# ---------- Unit Helpers ----------
 def input_metric(value, unit_type):
     """Convert a value from the current unit system to SI."""
     if st.session_state.unit_system == "imperial":
-        # conversions: length -> m, area -> m², force -> kN, pressure -> kPa, moment -> kNm
         conversions = {
-            "length": ("ft", 0.3048),       # from ft to m
-            "length_mm": ("in", 0.0254),     # from inches to m
-            "area": ("ft2", 0.092903),       # from ft² to m²
-            "force": ("kip", 4.44822),       # from kip to kN
-            "pressure": ("psi", 6.89476),    # from psi to kPa
-            "moment": ("kips-ft", 1.35582),  # from kip-ft to kNm
-            "weight_density": ("pcf", 0.157087),  # from lb/ft³ to kN/m³
+            "length": 0.3048,          # ft -> m
+            "length_mm": 0.0254,       # in -> m
+            "area": 0.092903,          # ft² -> m²
+            "force": 4.44822,          # kip -> kN
+            "pressure": 6.89476,       # psi -> kPa
+            "moment": 1.35582,         # kip-ft -> kNm
+            "weight_density": 0.157087 # pcf -> kN/m³
         }
         if unit_type in conversions:
-            factor = conversions[unit_type][1]
-            return value * factor
-    return value  # metric – already SI
+            return value * conversions[unit_type]
+    return value
 
 def output_metric(value, unit_type):
     """Convert a value from SI to the current unit system for display."""
     if st.session_state.unit_system == "imperial":
         conversions = {
-            "length": ("ft", 3.28084),
-            "length_mm": ("in", 39.3701),
-            "area": ("ft2", 10.7639),
-            "force": ("kip", 0.224809),
-            "pressure": ("psi", 0.145038),
-            "moment": ("kips-ft", 0.737562),
-            "weight_density": ("pcf", 6.36588),
-            "stress": ("ksi", 0.145038),   # MPa to ksi
+            "length": 3.28084,         # m -> ft
+            "length_mm": 39.3701,      # m -> in
+            "area": 10.7639,           # m² -> ft²
+            "force": 0.224809,         # kN -> kip
+            "pressure": 0.145038,      # kPa -> psi
+            "moment": 0.737562,        # kNm -> kip-ft
+            "weight_density": 6.36588, # kN/m³ -> pcf
+            "stress": 0.145038         # MPa -> ksi
         }
         if unit_type in conversions:
-            return value * conversions[unit_type][1]
+            return value * conversions[unit_type]
     return value
 
 def unit_label(unit_type):
@@ -135,34 +133,6 @@ def unit_label(unit_type):
     return labels.get(unit_type, "")
 
 # ---------- UI Helpers ----------
-def show_building(building, label=""):
-    st.subheader(f"🏗️ {label} — {building.name}")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.markdown(f"""
-        <div class="metric-card">
-            <div style="font-size:0.8rem; color:#94A3B8;">SCORE</div>
-            <div style="font-size:1.8rem; font-weight:700; color:#FBBF24;">{building.score}</div>
-        </div>
-        """, unsafe_allow_html=True)
-    with col2:
-        st.markdown(f"""
-        <div class="metric-card">
-            <div style="font-size:0.8rem; color:#94A3B8;">ID</div>
-            <div style="font-size:1.8rem; font-weight:700;">{building.id}</div>
-        </div>
-        """, unsafe_allow_html=True)
-    with col3:
-        st.markdown(f"""
-        <div class="metric-card">
-            <div style="font-size:0.8rem; color:#94A3B8;">ROOMS</div>
-            <div style="font-size:1.8rem; font-weight:700;">{len(building.plan)}</div>
-        </div>
-        """, unsafe_allow_html=True)
-    if building.plan:
-        svg = render_svg_plan(building.plan)
-        st.markdown(f'<div style="background:#0F172A; border-radius:12px; padding:8px; border:1px solid #334155;">{svg}</div>', unsafe_allow_html=True)
-
 def render_svg_plan(plan, width=800, height=500):
     svg = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" style="width:100%; background:#0F172A;">'
     for item in plan:
@@ -180,9 +150,25 @@ if not st.session_state.logged_in:
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.markdown("<br><br>", unsafe_allow_html=True)
-        st.markdown("<div style='text-align:center; font-size:3rem;'>🏗️</div>", unsafe_allow_html=True)
+        # Logo SVG
+        st.markdown("""
+        <div style="text-align:center; margin-bottom:10px;">
+            <svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect width="80" height="80" rx="16" fill="url(#p0)"/>
+                <path d="M24 56V32L40 24L56 32V56L40 64L24 56Z" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="40" cy="44" r="6" fill="white"/>
+                <path d="M40 36V28" stroke="white" stroke-width="3"/>
+                <defs>
+                    <linearGradient id="p0" x1="0" y1="0" x2="80" y2="80" gradientUnits="userSpaceOnUse">
+                        <stop stop-color="#3B82F6"/>
+                        <stop offset="1" stop-color="#2563EB"/>
+                    </linearGradient>
+                </defs>
+            </svg>
+        </div>
+        """, unsafe_allow_html=True)
         st.markdown("<h1 style='text-align:center; font-weight:700; margin-bottom:0;'>DRUM Studio</h1>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align:center; color:#94A3B8;'>Professional Structural Analysis</p>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align:center; color:#94A3B8;'>Structural Engineering Workstation</p>", unsafe_allow_html=True)
         with st.form("auth_form", clear_on_submit=True):
             uname = st.text_input("Username", placeholder="Enter username")
             pwd = st.text_input("Password", type="password", placeholder="Enter password")
@@ -191,6 +177,7 @@ if not st.session_state.logged_in:
                 login_btn = st.form_submit_button("🔑 Login", use_container_width=True)
             with col2_btn:
                 register_btn = st.form_submit_button("✨ Register", use_container_width=True)
+
             if login_btn:
                 user = authenticate(uname, pwd)
                 if user:
@@ -222,26 +209,46 @@ mem = st.session_state.memory
 
 # ----- SIDEBAR -----
 with st.sidebar:
-    st.image("https://img.icons8.com/fluency/96/engineer.png", width=80)
+    # Logo
+    st.markdown("""
+    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 15px;">
+        <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="40" height="40" rx="8" fill="url(#paint0_linear)"/>
+            <path d="M12 28V16L20 12L28 16V28L20 32L12 28Z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="20" cy="22" r="3" fill="white"/>
+            <path d="M20 18V14" stroke="white" stroke-width="2"/>
+            <defs>
+                <linearGradient id="paint0_linear" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+                    <stop stop-color="#3B82F6"/>
+                    <stop offset="1" stop-color="#2563EB"/>
+                </linearGradient>
+            </defs>
+        </svg>
+        <div>
+            <div style="font-weight: 700; font-size: 1.3rem; color: #F8FAFC; line-height: 1.2;">DRUM</div>
+            <div style="font-size: 0.7rem; color: #94A3B8; letter-spacing: 1px;">STUDIO</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
     st.markdown(f"### 👷 {username}")
     st.caption("Structural Engineer")
+
     st.markdown("---")
     page = st.radio("Navigate",
                     ["Project Dashboard", "Structural Analysis", "Archives"],
                     index=["Project Dashboard", "Structural Analysis", "Archives"].index(st.session_state.page),
                     key="nav_radio")
     st.session_state.page = page
+
     unit_choice = st.radio("Unit System", ["metric", "imperial"], index=0, key="unit_radio")
     st.session_state.unit_system = unit_choice
 
     with st.expander("🔧 Analysis Defaults"):
-        st.session_state.eng_params["live_load"] = st.number_input(
-            f"Live Load ({unit_label('pressure')})", 1.0, 10.0, st.session_state.eng_params["live_load"], 0.5, key="live_load")
-        st.session_state.eng_params["slab_thickness"] = st.number_input(
-            f"Slab Thickness ({unit_label('length')})", 0.1, 0.5, st.session_state.eng_params["slab_thickness"], 0.05, key="slab_thick")
-        st.session_state.eng_params["additional_dead"] = st.number_input(
-            f"Additional Dead ({unit_label('pressure')})", 0.0, 5.0, st.session_state.eng_params["additional_dead"], 0.1, key="add_dead")
-        st.session_state.eng_params["glazing_ratio"] = st.slider("Glazing Ratio", 0.05, 0.8, st.session_state.eng_params["glazing_ratio"], key="glaz_ratio")
+        st.session_state.eng_params["live_load"] = st.number_input(f"Live Load ({unit_label('pressure')})", 1.0, 10.0, 2.5, 0.5, key="live_load")
+        st.session_state.eng_params["slab_thickness"] = st.number_input(f"Slab Thickness ({unit_label('length')})", 0.1, 0.5, 0.2, 0.05, key="slab_thick")
+        st.session_state.eng_params["additional_dead"] = st.number_input(f"Additional Dead ({unit_label('pressure')})", 0.0, 5.0, 1.0, 0.1, key="add_dead")
+        st.session_state.eng_params["glazing_ratio"] = st.slider("Glazing Ratio", 0.05, 0.8, 0.2, key="glaz_ratio")
         st.session_state.eng_params["orientation"] = st.selectbox("Orientation", ["north","south","east","west"], key="orient")
 
     if st.button("🚪 Logout"):
@@ -258,46 +265,140 @@ with st.sidebar:
 # PAGE: PROJECT DASHBOARD
 # ======================
 if page == "Project Dashboard":
-    st.title("📁 Project Dashboard")
-    if st.button("➕ New Project"):
-        new_building = Building(name=f"Project-{len(mem['buildings'])+1}", score=50)
-        generate_plan(new_building)
-        mem["buildings"].append(new_building.to_dict())
-        st.session_state.active_building = new_building
-        log_event(username, mem, f"Created new project: {new_building.name}")
-        save_memory(username, mem)
-        st.success(f"New project '{new_building.name}' created!")
-        st.rerun()
+    st.title("🏢 Project Dashboard")
 
+    # Top metrics if a project is active
     if st.session_state.active_building:
-        show_building(st.session_state.active_building, "Current")
-        if st.button("🔍 Analyze This Project"):
+        building = st.session_state.active_building
+        col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+        col_m1.metric("Building ID", building.id)
+        col_m2.metric("Rooms", len(building.plan))
+        col_m3.metric("Design Score", building.score)
+        col_m4.metric("Area", f"{output_metric(calculate_total_area(building.plan), 'area'):.1f} {unit_label('area')}")
+
+    st.markdown("---")
+
+    left_col, right_col = st.columns([1, 3])
+
+    with left_col:
+        st.markdown("### 🧰 Project Tools")
+        if st.button("➕ New Project", use_container_width=True):
+            new_building = Building(name=f"Project-{len(mem['buildings'])+1}", score=50)
+            generate_plan(new_building)
+            mem["buildings"].append(new_building.to_dict())
+            st.session_state.active_building = new_building
+            log_event(username, mem, f"Created new project: {new_building.name}")
+            save_memory(username, mem)
+            st.success(f"New project '{new_building.name}' created!")
+            st.rerun()
+
+        if mem["buildings"]:
+            st.markdown("**Saved Projects**")
+            for bdict in reversed(mem["buildings"][-10:]):
+                building = Building.from_dict(bdict)
+                col_a, col_b = st.columns([3,1])
+                with col_a:
+                    if st.button(f"📂 {building.name}", key=f"sel_{building.id}"):
+                        st.session_state.active_building = building
+                        st.rerun()
+                with col_b:
+                    if st.button("🗑️", key=f"del_{building.id}"):
+                        mem["buildings"] = [b for b in mem["buildings"] if b["id"] != building.id]
+                        if st.session_state.active_building and st.session_state.active_building.id == building.id:
+                            st.session_state.active_building = None
+                        save_memory(username, mem)
+                        st.rerun()
+
+        st.markdown("---")
+        st.markdown("### ⚡ Quick Analysis")
+        if st.button("📐 Beam Design", use_container_width=True):
             st.session_state.page = "Structural Analysis"
             st.rerun()
-    else:
-        st.info("No active project. Create one or select from the list below.")
+        if st.button("🧱 Column Design", use_container_width=True):
+            st.session_state.page = "Structural Analysis"
+            st.rerun()
+        if st.button("🌍 Foundation", use_container_width=True):
+            st.session_state.page = "Structural Analysis"
+            st.rerun()
 
-    if mem["buildings"]:
-        for bdict in reversed(mem["buildings"]):
-            building = Building.from_dict(bdict)
-            col1, col2 = st.columns([4,1])
-            with col1:
-                st.write(f"**{building.name}** (ID: {building.id}) – Score: {building.score}")
-            with col2:
-                if st.button("Open", key=f"open_{building.id}"):
-                    st.session_state.active_building = building
-                    st.rerun()
-    else:
-        st.write("No projects yet.")
+    with right_col:
+        if st.session_state.active_building:
+            building = st.session_state.active_building
+            # 2D Plan
+            st.markdown("#### 📐 2D Floor Plan")
+            if building.plan:
+                svg = render_svg_plan(building.plan)
+                st.markdown(f'<div style="background:#0F172A; border-radius:12px; padding:8px; border:1px solid #334155;">{svg}</div>', unsafe_allow_html=True)
+            else:
+                st.info("No plan data.")
+
+            # 3D Isometric View with OrbitControls
+            st.markdown("#### 🧊 Interactive 3D Model")
+            if building.plan:
+                rooms_js = ""
+                for i, room in enumerate(building.plan):
+                    x = room["x"] / 1000
+                    z = room["y"] / 1000
+                    w = room["w"] / 1000
+                    d = room["h"] / 1000
+                    h = 3.0
+                    color = room.get("color", "#4f46e5")
+                    rooms_js += f"""
+            geometry = new THREE.BoxGeometry({w}, {h}, {d});
+            material = new THREE.MeshPhongMaterial({{color: '{color}', opacity: 0.7, transparent: true}});
+            cube = new THREE.Mesh(geometry, material);
+            cube.position.set({x + w/2}, {h/2}, {z + d/2});
+            scene.add(cube);
+            """
+                three_js_html = f"""
+            <html>
+            <head>
+                <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+                <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+            </head>
+            <body style="margin:0; overflow:hidden;">
+                <script>
+                    var scene = new THREE.Scene();
+                    scene.background = new THREE.Color(0x0f172a);
+                    var camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+                    camera.position.set(8, 6, 10);
+                    var renderer = new THREE.WebGLRenderer();
+                    renderer.setSize(window.innerWidth, window.innerHeight);
+                    document.body.appendChild(renderer.domElement);
+                    var controls = new THREE.OrbitControls(camera, renderer.domElement);
+                    controls.target.set(4, 1.5, 2.5);
+                    controls.update();
+                    var light = new THREE.DirectionalLight(0xffffff, 1);
+                    light.position.set(5, 10, 7);
+                    scene.add(light);
+                    var ambient = new THREE.AmbientLight(0x404040);
+                    scene.add(ambient);
+                    var geometry, material, cube;
+                    {rooms_js}
+                    function animate() {{
+                        requestAnimationFrame(animate);
+                        controls.update();
+                        renderer.render(scene, camera);
+                    }}
+                    animate();
+                </script>
+            </body>
+            </html>
+            """
+                st.components.v1.html(three_js_html, height=500, scrolling=False)
+            else:
+                st.info("3D view requires a building plan.")
+        else:
+            st.info("👈 Select a project from the list or create a new one to start.")
 
 # ======================
-# PAGE: STRUCTURAL ANALYSIS (with full imperial conversion)
+# PAGE: STRUCTURAL ANALYSIS
 # ======================
 elif page == "Structural Analysis":
     st.title("🏗️ Structural Analysis Workstation")
     st.caption("All inputs and outputs respect the selected unit system.")
 
-    # Helper lambda for input widgets (uses input_metric)
+    # Helper for number inputs with unit conversion
     def ui_number_input(label, min_val, max_val, value, step, key, unit_type):
         display_min = output_metric(min_val, unit_type) if st.session_state.unit_system=="imperial" else min_val
         display_max = output_metric(max_val, unit_type) if st.session_state.unit_system=="imperial" else max_val
@@ -321,18 +422,15 @@ elif page == "Structural Analysis":
             grade = st.selectbox("Concrete Grade", list(CONCRETE_GRADES.keys()), key="beam_rc_grade")
             b = ui_number_input(f"Width ({unit_label('length_mm')})", 100, 1000, 300, 10, "beam_b", "length_mm")
             h = ui_number_input(f"Total height ({unit_label('length_mm')})", 200, 2000, 500, 10, "beam_h", "length_mm")
-            d = h - 50e-3  # assume 50 mm cover
+            d = h - 50e-3
             span = ui_number_input(f"Span ({unit_label('length')})", 1.0, 30.0, 6.0, 0.1, "beam_span", "length")
             M_ed = ui_number_input(f"Design Moment M_Ed ({unit_label('moment')})", 10.0, 1000.0, 120.0, 1.0, "beam_Med", "moment")
             V_ed = ui_number_input(f"Design Shear V_Ed ({unit_label('force')})", 10.0, 500.0, 80.0, 1.0, "beam_Ved", "force")
             if st.button("Check RC Beam", key="check_rc_beam"):
-                fck = CONCRETE_GRADES[grade]["fck"]  # MPa
+                fck = CONCRETE_GRADES[grade]["fck"]
                 res = check_rc_beam(b, h, d, fck, M_ed, V_ed, span)
-                if res["pass"]:
-                    st.success("✅ Beam OK")
-                else:
-                    st.error("❌ Beam fails check")
-                # Convert output to current units
+                if res["pass"]: st.success("✅ Beam OK")
+                else: st.error("❌ Beam fails check")
                 st.write(f"As required: {output_metric(res['As_req'], 'area'):.2f} {unit_label('area')}")
                 st.json(res)
         elif beam_mat == "Steel":
@@ -374,7 +472,7 @@ elif page == "Structural Analysis":
         st.subheader("Slab Thickness")
         span = ui_number_input(f"Short span ({unit_label('length')})", 2.0, 15.0, 5.0, 0.1, "slab_span", "length")
         support = st.selectbox("Support", ["simply_supported", "continuous"], key="slab_support")
-        t = slab_thickness_estimate(span, support)  # returns m
+        t = slab_thickness_estimate(span, support)
         st.success(f"Recommended thickness: **{output_metric(t*1000, 'length_mm'):.0f} {unit_label('length_mm')}**")
 
     # ---- FOUNDATIONS (3) ----
@@ -392,11 +490,10 @@ elif page == "Structural Analysis":
         st.subheader("Wall Types & Finishes")
         wall = st.selectbox("Wall Type", list(WALL_TYPES.keys()), key="wall_type")
         props = WALL_TYPES[wall]
-        # weight is in kN/m², convert if needed
         weight_disp = output_metric(props['weight'], 'pressure') if st.session_state.unit_system=="imperial" else props['weight']
         st.write(f"Weight: {weight_disp:.2f} {unit_label('pressure')}, U‑value: {props['U']} W/m²K, Sound: {props['sound']} dB")
         finishes = st.multiselect("Finishes", list(FINISHES.keys()), default=["Plaster (internal)", "Paint"], key="finishes")
-        finish_load = sum(FINISHES[f] for f in finishes)  # kN/m²
+        finish_load = sum(FINISHES[f] for f in finishes)
         finish_disp = output_metric(finish_load, 'pressure') if st.session_state.unit_system=="imperial" else finish_load
         st.metric("Total finish load", f"{finish_disp:.3f} {unit_label('pressure')}")
         if st.button("Apply to Model", key="apply_wall"):
@@ -424,7 +521,7 @@ elif page == "Structural Analysis":
         P = ui_number_input(f"Prestressing force ({unit_label('force')})", 100.0, 5000.0, 1000.0, 10.0, "pre_P", "force")
         e = ui_number_input(f"Eccentricity ({unit_label('length')})", 0.0, 1.0, 0.2, 0.01, "pre_e", "length")
         A = ui_number_input(f"Cross-sectional area ({unit_label('area')})", 0.05, 2.0, 0.3, 0.01, "pre_A", "area")
-        I = st.number_input("Second moment of area I (m⁴)", 0.001, 0.2, 0.01, 0.001, key="pre_I")  # always m⁴
+        I = st.number_input("Second moment of area I (m⁴)", 0.001, 0.2, 0.01, 0.001, key="pre_I")
         y_top = ui_number_input(f"y_top ({unit_label('length')})", 0.1, 1.0, 0.5, 0.01, "pre_ytop", "length")
         y_bot = ui_number_input(f"y_bot ({unit_label('length')})", 0.1, 1.0, 0.5, 0.01, "pre_ybot", "length")
         fck = st.number_input("fck (MPa)", 20, 60, 35, key="pre_fck")
@@ -432,7 +529,6 @@ elif page == "Structural Analysis":
             res = check_prestressed_beam(M_ext, P, e, A, I, y_top, y_bot, fck)
             if res["pass"]: st.success("✅ Stresses within limits")
             else: st.error("❌ Stress limit exceeded")
-            # stresses are in MPa; convert to current unit
             st.write(f"Top stress: {output_metric(res['sigma_top_MPa'], 'stress'):.2f} {unit_label('stress')}")
             st.write(f"Bottom stress: {output_metric(res['sigma_bot_MPa'], 'stress'):.2f} {unit_label('stress')}")
             st.write(f"Allowable compression: {output_metric(res['sigma_c_allow'], 'stress'):.2f} {unit_label('stress')}")
@@ -512,6 +608,11 @@ else:  # Archives
         for bdict in reversed(mem["buildings"]):
             building = Building.from_dict(bdict)
             with st.expander(f"{building.name} – Score {building.score}"):
-                show_building(building)
+                # 2D plan only in archive
+                if building.plan:
+                    svg = render_svg_plan(building.plan)
+                    st.markdown(f'<div style="background:#0F172A; border-radius:12px; padding:8px; border:1px solid #334155;">{svg}</div>', unsafe_allow_html=True)
+                else:
+                    st.write("No plan data.")
     else:
         st.info("No projects yet. Go to the Project Dashboard to create one.")
