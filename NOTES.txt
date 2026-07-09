@@ -14,3 +14,11 @@ Drum/
     ├── evolution_chamber.py
     ├── structural_analysis.py
     └── archives.py
+
+Drum/
+├── streamlit_app.py       # Main Streamlit application
+├── main.py                # User management, data persistence, building generator
+├── engineering.py          # Structural calculation engine (Eurocodes, units)
+├── requirements.txt        # Python packages
+├── data/                   # User‑saved projects (auto‑created)
+└── README.md
