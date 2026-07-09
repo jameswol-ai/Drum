@@ -3,3 +3,14 @@ Drum/
 ├── main.py
 ├── app.py
 └── data/            (created automatically)
+
+Drum/
+├── main.py               (game helpers – unchanged)
+├── engineering.py        (expanded with new modules)
+├── streamlit_app.py      (main entry point, sidebar, navigation)
+└── pages/
+    ├── __init__.py
+    ├── command_center.py
+    ├── evolution_chamber.py
+    ├── structural_analysis.py
+    └── archives.py
