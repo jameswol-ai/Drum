@@ -243,61 +243,109 @@ with st.sidebar:
         st.rerun()
 
 # ======================
-# PAGE: COMMAND CENTER
+# ======================
+# PAGE: COMMAND CENTER (Enhanced)
 # ======================
 if page == "Command Center":
-    st.title("📊 Command Center")
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Buildings", len(mem["buildings"]))
-    col2.metric("Sessions", len(mem["sessions"]))
-    col3.metric("Badges", "🏅" * len(user_data.get("badges", [])))
+    st.title("📊 Project Dashboard")
+    # Top row cards
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("🏢 Buildings", len(mem["buildings"]))
+    col2.metric("🔄 Sessions", len(mem["sessions"]))
+    col3.metric("🏅 Badges", f"{len(user_data.get('badges', []))}")
+    col4.metric("⚡ XP", f"{user_data.get('xp', 0)} / {xp_for_level(user_data.get('level', 1))}", delta=f"Lv.{user_data.get('level', 1)}")
 
-    # Quick actions
-    st.subheader("Quick Actions")
-    if st.button("🏗️ Generate Random Building"):
-        # Create a random building using evolution with current config
-        best, trend = simulate_evolution(st.session_state.config)
-        mem["buildings"].append(best.to_dict())
-        mem["sessions"].append({"id": str(uuid.uuid4())[:6], "building_id": best.id, "time": datetime.now().isoformat()})
-        st.session_state.active_building = best
-        log_event(username, mem, f"Quick build: {best.name}")
-        update_quests(username, mem, "evolution", {"plan": best.plan})
-        grant_quest_rewards(username, mem, on_level_up=st.balloons)
-        add_xp(username, int(best.score * 2))
-        st.session_state.user_data = get_user(username)
-        save_memory(username, mem)
-        st.success(f"Created building {best.name} with score {best.score}")
-        st.rerun()
+    st.markdown("---")
+    # Active project overview
+    colA, colB = st.columns([3, 1])
+    with colA:
+        st.subheader("🏗️ Active Project")
+        if st.session_state.active_building:
+            show_building(st.session_state.active_building, "Current")
+            # Quick actions for active building
+            c1, c2 = st.columns(2)
+            if c1.button("🧬 Evolve More", key="cmd_evolve"):
+                st.session_state.page = "Evolution Chamber"
+            if c2.button("🔍 Analyze Structure", key="cmd_analyze"):
+                st.session_state.page = "Structural Analysis"
+        else:
+            st.info("No active project. Click below to create one or load a demo.")
+            if st.button("🏗️ New Random Building"):
+                best, trend = simulate_evolution(st.session_state.config)
+                mem["buildings"].append(best.to_dict())
+                mem["sessions"].append({"id": str(uuid.uuid4())[:6], "building_id": best.id, "time": datetime.now().isoformat()})
+                st.session_state.active_building = best
+                log_event(username, mem, f"Quick build: {best.name}")
+                update_quests(username, mem, "evolution", {"plan": best.plan})
+                grant_quest_rewards(username, mem, on_level_up=st.balloons)
+                add_xp(username, int(best.score * 2))
+                st.session_state.user_data = get_user(username)
+                save_memory(username, mem)
+                st.rerun()
+    with colB:
+        st.subheader("📈 Stats")
+        st.write(f"**Generation:** {st.session_state.config['generations']}")
+        st.write(f"**Mutation:** {st.session_state.config['mutation_rate']}")
+        if st.session_state.active_building:
+            st.write(f"**Active Score:** {st.session_state.active_building.score}")
 
-    # Active building display
-    if st.session_state.active_building:
-        show_building(st.session_state.active_building, "Active")
-    else:
-        st.info("No active building. Generate one above or go to Evolution Chamber.")
+    # Recent activity timeline
+    st.markdown("---")
+    st.subheader("🕓 Recent Activity")
+    for log in reversed(mem["logs"][-8:]):
+        st.markdown(f"`{log['time'][11:19]}` – {log['msg']}")
 
-    # Recent logs
-    st.subheader("Recent Logs")
-    for log in reversed(mem["logs"][-5:]):
-        st.caption(f"`{log['time'][11:19]}` – {log['msg']}")
-
+    # Quick navigation cards
+    st.markdown("---")
+    st.subheader("⚡ Quick Actions")
+    cols = st.columns(4)
+    with cols[0]:
+        if st.button("🧬 Evolution Chamber", use_container_width=True):
+            st.session_state.page = "Evolution Chamber"
+    with cols[1]:
+        if st.button("🏗️ Structural Analysis", use_container_width=True):
+            st.session_state.page = "Structural Analysis"
+    with cols[2]:
+        if st.button("🗄️ Archives", use_container_width=True):
+            st.session_state.page = "Archives"
+    with cols[3]:
+        if st.button("📦 Load Demo", use_container_width=True):
+            demo = Building(name="Demo", score=85)
+            generate_plan(demo)
+            st.session_state.active_building = demo
+            log_event(username, mem, "Loaded demo building")
+            save_memory(username, mem)
+            st.rerun()
 # ======================
-# PAGE: EVOLUTION CHAMBER
+# ======================
+# PAGE: EVOLUTION CHAMBER (Enhanced)
 # ======================
 elif page == "Evolution Chamber":
-    st.title("🧬 Evolution Chamber")
-    st.caption("Configure evolution parameters in the sidebar under Game Settings.")
+    st.title("🧬 Design Evolution Lab")
+    st.caption("Tune the genetic algorithm parameters and watch your building evolve.")
 
-    col1, col2 = st.columns([2,1])
-    with col1:
-        if st.button("🚀 EVOLVE!", type="primary"):
-            with st.spinner("Mixing genes..."):
+    # Controls layout
+    col_controls, col_preview = st.columns([1, 2])
+    with col_controls:
+        st.subheader("⚙️ Algorithm Settings")
+        generations = st.slider("Generations", 2, 30, st.session_state.config.get("generations", 5), key="ev_gen")
+        mutation = st.slider("Mutation Rate", 0.0, 1.0, st.session_state.config.get("mutation_rate", 0.1), 0.05, key="ev_mut")
+        pop_size = st.slider("Population Size", 2, 50, st.session_state.config.get("population_size", 10), key="ev_pop")
+        # Update config
+        st.session_state.config["generations"] = generations
+        st.session_state.config["mutation_rate"] = mutation
+        st.session_state.config["population_size"] = pop_size
+
+        st.markdown("---")
+        if st.button("🚀 Start Evolution", type="primary", use_container_width=True):
+            with st.spinner("Evolving designs..."):
                 best, trend = simulate_evolution(st.session_state.config)
                 rhythm = generate_rhythm(best)
                 mem["buildings"].append(best.to_dict())
                 mem["rhythms"].append(rhythm)
                 mem["sessions"].append({"id": str(uuid.uuid4())[:6], "building_id": best.id, "time": datetime.now().isoformat()})
                 st.session_state.active_building = best
-                log_event(username, mem, f"New design: {best.name}")
+                log_event(username, mem, f"Evolved: {best.name} (score {best.score})")
                 update_quests(username, mem, "evolution", {"plan": best.plan})
                 grant_quest_rewards(username, mem, on_level_up=st.balloons)
                 leveled = add_xp(username, int(best.score * 2))
@@ -305,16 +353,11 @@ elif page == "Evolution Chamber":
                 if leveled:
                     st.balloons()
                 save_memory(username, mem)
-            st.line_chart(trend, use_container_width=True)
+                # Store trend for display
+                st.session_state.trend = trend
+            st.success(f"Evolution complete! Best score: {best.score}")
 
-    with col2:
-        # Show current config
-        st.write("**Current Settings**")
-        st.write(f"Generations: {st.session_state.config['generations']}")
-        st.write(f"Mutation Rate: {st.session_state.config['mutation_rate']}")
-        st.write(f"Population Size: {st.session_state.config['population_size']}")
-
-        if st.button("📦 Load Demo Building"):
+        if st.button("📦 Load Demo Building", use_container_width=True):
             demo = Building(name="Demo", score=85)
             generate_plan(demo)
             st.session_state.active_building = demo
@@ -322,16 +365,24 @@ elif page == "Evolution Chamber":
             save_memory(username, mem)
             st.rerun()
 
-    if st.session_state.active_building:
-        show_building(st.session_state.active_building, "Active")
-        if mem["rhythms"] and mem["sessions"]:
-            last = mem["sessions"][-1]
-            if last.get("building_id") == st.session_state.active_building.id:
-                st.subheader("🥁 Rhythm Sequencer")
-                show_rhythm(mem["rhythms"][-1])
-    else:
-        st.info("Press EVOLVE! or load a demo to create a building.")
+    with col_preview:
+        st.subheader("📈 Fitness Trend")
+        if "trend" in st.session_state and st.session_state.trend:
+            st.line_chart(st.session_state.trend, use_container_width=True)
+        else:
+            st.info("Run an evolution to see the fitness trend.")
 
+        # Active building preview
+        st.subheader("🏢 Current Best Design")
+        if st.session_state.active_building:
+            show_building(st.session_state.active_building, "Best")
+            if mem["rhythms"] and mem["sessions"]:
+                last = mem["sessions"][-1]
+                if last.get("building_id") == st.session_state.active_building.id:
+                    with st.expander("🥁 View Rhythm"):
+                        show_rhythm(mem["rhythms"][-1])
+        else:
+            st.info("No building yet. Start an evolution or load a demo.")
 # ======================
 # PAGE: STRUCTURAL ANALYSIS
 # ======================
