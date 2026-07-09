@@ -144,18 +144,26 @@ def show_rhythm(rhythm):
     st.markdown(html, unsafe_allow_html=True)
 
 # ======================
-# LOGIN PAGE
+# LOGIN PAGE (Modern)
 # ======================
 if not st.session_state.logged_in:
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        st.markdown("<h1 style='text-align:center;'>🏗️ DRUM Studio</h1>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align:center; color:#A78BFA;'>Login or create your architect identity</p>", unsafe_allow_html=True)
-        with st.form("auth"):
-            uname = st.text_input("Username")
-            pwd = st.text_input("Password", type="password")
-            col_login, col_reg = st.columns(2)
-            if col_login.form_submit_button("Login"):
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        # Logo / brand
+        st.markdown("<div style='text-align:center;'><span style='font-size:3rem;'>🏗️</span></div>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align:center; font-weight:700; margin-bottom:0;'>DRUM Studio</h1>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align:center; color:#94A3B8; margin-top:0;'>Structural Engineering & Design</p>", unsafe_allow_html=True)
+        with st.form("auth_form", clear_on_submit=True):
+            uname = st.text_input("Username", placeholder="Enter your username")
+            pwd = st.text_input("Password", type="password", placeholder="Enter your password")
+            col1_btn, col2_btn = st.columns(2)
+            with col1_btn:
+                login_btn = st.form_submit_button("🔑 Login", use_container_width=True)
+            with col2_btn:
+                register_btn = st.form_submit_button("✨ Register", use_container_width=True)
+
+            if login_btn:
                 user = authenticate(uname, pwd)
                 if user:
                     st.session_state.logged_in = True
@@ -167,13 +175,13 @@ if not st.session_state.logged_in:
                     st.rerun()
                 else:
                     st.error("Invalid credentials.")
-            if col_reg.form_submit_button("Register"):
+            if register_btn:
                 if not uname or not pwd:
                     st.error("Fill all fields.")
                 else:
                     try:
                         create_user(uname, pwd)
-                        st.success("Account created!")
+                        st.success("Account created! You can now log in.")
                     except ValueError as e:
                         st.error(str(e))
     st.stop()
