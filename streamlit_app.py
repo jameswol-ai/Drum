@@ -17,7 +17,12 @@ from engineering import (
     slab_thickness_estimate, foundation_size,
     calculate_total_area, compute_floor_loads, check_structural_integrity,
     calculate_energy_score, estimate_cost,
-    to_metric, to_imperial
+    to_metric, to_imperial,
+    pile_capacity,
+    check_prestressed_beam,
+    generate_analysis_report,
+    retaining_wall_stability,
+    truss_method_of_joints,
 )
 
 # ---------- Page Config ----------
@@ -45,6 +50,7 @@ if "logged_in" not in st.session_state:
         "glazing_ratio": 0.2,
         "orientation": "south",
     }
+    st.session_state.page = "Command Center"   # default page
 
 if not load_users():
     create_user("admin", "admin123", role="admin")
@@ -144,13 +150,12 @@ def show_rhythm(rhythm):
     st.markdown(html, unsafe_allow_html=True)
 
 # ======================
-# LOGIN PAGE (Modern)
+# LOGIN PAGE
 # ======================
 if not st.session_state.logged_in:
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.markdown("<br><br>", unsafe_allow_html=True)
-        # Logo / brand
         st.markdown("<div style='text-align:center;'><span style='font-size:3rem;'>🏗️</span></div>", unsafe_allow_html=True)
         st.markdown("<h1 style='text-align:center; font-weight:700; margin-bottom:0;'>DRUM Studio</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align:center; color:#94A3B8; margin-top:0;'>Structural Engineering & Design</p>", unsafe_allow_html=True)
@@ -209,55 +214,49 @@ with st.sidebar:
         for dq in mem.get("daily_quests", []):
             pct = min(dq["progress"]/dq["target"], 1.0)
             st.write(f"{dq['desc']} ({dq['progress']}/{dq['target']})")
-# ======================
-# LOGIN PAGE
-# ======================
-if not st.session_state.logged_in:
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.markdown("<br><br>", unsafe_allow_html=True)
-        st.markdown("<div style='text-align:center;'><span style='font-size:3rem;'>🏗️</span></div>", unsafe_allow_html=True)
-        st.markdown("<h1 style='text-align:center; font-weight:700; margin-bottom:0;'>DRUM Studio</h1>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align:center; color:#94A3B8; margin-top:0;'>Structural Engineering & Design</p>", unsafe_allow_html=True)
-        with st.form("auth_form", clear_on_submit=True):
-            uname = st.text_input("Username", placeholder="Enter your username")
-            pwd = st.text_input("Password", type="password", placeholder="Enter your password")
-            col1_btn, col2_btn = st.columns(2)
-            with col1_btn:
-                login_btn = st.form_submit_button("🔑 Login", use_container_width=True)
-            with col2_btn:
-                register_btn = st.form_submit_button("✨ Register", use_container_width=True)
+            st.progress(pct)
 
-            if login_btn:
-                user = authenticate(uname, pwd)
-                if user:
-                    st.session_state.logged_in = True
-                    st.session_state.username = uname
-                    st.session_state.user_data = user
-                    mem = load_memory(uname)
-                    init_quests(uname, mem)
-                    st.session_state.memory = mem
-                    st.rerun()
+    st.markdown("---")
+    # Navigation – use session_state.page to sync with quick buttons
+    page = st.radio("Navigate",
+                    ["Command Center", "Evolution Chamber", "Structural Analysis", "Archives"],
+                    index=["Command Center", "Evolution Chamber", "Structural Analysis", "Archives"].index(st.session_state.page),
+                    key="nav_radio")
+    st.session_state.page = page
+
+    # Unit system toggle
+    unit_choice = st.radio("Unit System", ["metric", "imperial"], index=0, key="unit_radio")
+    st.session_state.unit_system = unit_choice
+
+    # Engineering params
+    with st.expander("🔧 Analysis Settings"):
+        st.session_state.eng_params["live_load"] = st.number_input("Live Load (kN/m²)", 1.0, 10.0, 2.5, 0.5, key="live_load")
+        st.session_state.eng_params["slab_thickness"] = st.number_input("Slab Thickness (m)", 0.1, 0.5, 0.2, 0.05, key="slab_thick")
+        st.session_state.eng_params["additional_dead"] = st.number_input("Additional Dead (kN/m²)", 0.0, 5.0, 1.0, 0.1, key="add_dead")
+        st.session_state.eng_params["glazing_ratio"] = st.slider("Glazing Ratio", 0.05, 0.8, 0.2, key="glaz_ratio")
+        st.session_state.eng_params["orientation"] = st.selectbox("Orientation", ["north","south","east","west"], key="orient")
+
+    # Game settings
+    with st.expander("⚙️ Game Settings"):
+        st.session_state.config["generations"] = st.slider("Generations", 2, 20, 5, key="gen_slider")
+        st.session_state.config["mutation_rate"] = st.slider("Mutation Rate", 0.0, 1.0, 0.1, 0.05, key="mut_rate")
+        st.session_state.config["population_size"] = st.number_input("Population Size", 2, 50, 10, key="pop_size")
+
+    if st.button("🚪 Logout"):
+        save_memory(username, mem)
+        for key in ["logged_in","username","user_data","memory","active_building"]:
+            if key in st.session_state:
+                if key == "memory":
+                    st.session_state[key] = DEFAULT_STATE.copy()
                 else:
-                    st.error("Invalid credentials.")
-            if register_btn:
-                if not uname or not pwd:
-                    st.error("Fill all fields.")
-                else:
-                    try:
-                        create_user(uname, pwd)
-                        st.success("Account created! You can now log in.")
-                    except ValueError as e:
-                        st.error(str(e))
-    st.stop()
+                    st.session_state[key] = None
+        st.rerun()
 
 # ======================
-# ======================
-# PAGE: COMMAND CENTER (Enhanced)
+# PAGE: COMMAND CENTER
 # ======================
 if page == "Command Center":
     st.title("📊 Project Dashboard")
-    # Top row cards
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("🏢 Buildings", len(mem["buildings"]))
     col2.metric("🔄 Sessions", len(mem["sessions"]))
@@ -265,21 +264,21 @@ if page == "Command Center":
     col4.metric("⚡ XP", f"{user_data.get('xp', 0)} / {xp_for_level(user_data.get('level', 1))}", delta=f"Lv.{user_data.get('level', 1)}")
 
     st.markdown("---")
-    # Active project overview
     colA, colB = st.columns([3, 1])
     with colA:
         st.subheader("🏗️ Active Project")
         if st.session_state.active_building:
             show_building(st.session_state.active_building, "Current")
-            # Quick actions for active building
             c1, c2 = st.columns(2)
             if c1.button("🧬 Evolve More", key="cmd_evolve"):
                 st.session_state.page = "Evolution Chamber"
+                st.rerun()
             if c2.button("🔍 Analyze Structure", key="cmd_analyze"):
                 st.session_state.page = "Structural Analysis"
+                st.rerun()
         else:
-            st.info("No active project. Click below to create one or load a demo.")
-            if st.button("🏗️ New Random Building"):
+            st.info("No active project. Create one or load a demo.")
+            if st.button("🏗️ New Random Building", key="cmd_new"):
                 best, trend = simulate_evolution(st.session_state.config)
                 mem["buildings"].append(best.to_dict())
                 mem["sessions"].append({"id": str(uuid.uuid4())[:6], "building_id": best.id, "time": datetime.now().isoformat()})
@@ -298,25 +297,26 @@ if page == "Command Center":
         if st.session_state.active_building:
             st.write(f"**Active Score:** {st.session_state.active_building.score}")
 
-    # Recent activity timeline
     st.markdown("---")
     st.subheader("🕓 Recent Activity")
     for log in reversed(mem["logs"][-8:]):
         st.markdown(f"`{log['time'][11:19]}` – {log['msg']}")
 
-    # Quick navigation cards
     st.markdown("---")
     st.subheader("⚡ Quick Actions")
     cols = st.columns(4)
     with cols[0]:
         if st.button("🧬 Evolution Chamber", use_container_width=True):
             st.session_state.page = "Evolution Chamber"
+            st.rerun()
     with cols[1]:
         if st.button("🏗️ Structural Analysis", use_container_width=True):
             st.session_state.page = "Structural Analysis"
+            st.rerun()
     with cols[2]:
         if st.button("🗄️ Archives", use_container_width=True):
             st.session_state.page = "Archives"
+            st.rerun()
     with cols[3]:
         if st.button("📦 Load Demo", use_container_width=True):
             demo = Building(name="Demo", score=85)
@@ -325,22 +325,20 @@ if page == "Command Center":
             log_event(username, mem, "Loaded demo building")
             save_memory(username, mem)
             st.rerun()
+
 # ======================
-# ======================
-# PAGE: EVOLUTION CHAMBER (Enhanced)
+# PAGE: EVOLUTION CHAMBER
 # ======================
 elif page == "Evolution Chamber":
     st.title("🧬 Design Evolution Lab")
     st.caption("Tune the genetic algorithm parameters and watch your building evolve.")
 
-    # Controls layout
     col_controls, col_preview = st.columns([1, 2])
     with col_controls:
         st.subheader("⚙️ Algorithm Settings")
         generations = st.slider("Generations", 2, 30, st.session_state.config.get("generations", 5), key="ev_gen")
         mutation = st.slider("Mutation Rate", 0.0, 1.0, st.session_state.config.get("mutation_rate", 0.1), 0.05, key="ev_mut")
         pop_size = st.slider("Population Size", 2, 50, st.session_state.config.get("population_size", 10), key="ev_pop")
-        # Update config
         st.session_state.config["generations"] = generations
         st.session_state.config["mutation_rate"] = mutation
         st.session_state.config["population_size"] = pop_size
@@ -362,7 +360,6 @@ elif page == "Evolution Chamber":
                 if leveled:
                     st.balloons()
                 save_memory(username, mem)
-                # Store trend for display
                 st.session_state.trend = trend
             st.success(f"Evolution complete! Best score: {best.score}")
 
@@ -381,7 +378,6 @@ elif page == "Evolution Chamber":
         else:
             st.info("Run an evolution to see the fitness trend.")
 
-        # Active building preview
         st.subheader("🏢 Current Best Design")
         if st.session_state.active_building:
             show_building(st.session_state.active_building, "Best")
@@ -392,19 +388,21 @@ elif page == "Evolution Chamber":
                         show_rhythm(mem["rhythms"][-1])
         else:
             st.info("No building yet. Start an evolution or load a demo.")
+
 # ======================
 # PAGE: STRUCTURAL ANALYSIS
 # ======================
 elif page == "Structural Analysis":
     st.title("🏗️ Structural Analysis Workstation")
-    st.caption("Design & check beams, columns, slabs, foundations, walls & finishes to Eurocodes")
+    st.caption("Design & check beams, columns, slabs, foundations, walls, piles, prestressed, retaining walls, trusses, and export reports.")
 
     tabs = st.tabs([
-    "📐 Beams", "🧱 Columns", "🔲 Slabs", "🌍 Foundations",
-    "🏛️ Walls & Finishes", "📌 Piles", "⚡ Prestressed",
-    "🧱 Retaining Wall", "🔺 Truss", "📄 Export/Report"
-])
-    # ---- BEAMS ----
+        "📐 Beams", "🧱 Columns", "🔲 Slabs", "🌍 Foundations",
+        "🏛️ Walls & Finishes", "📌 Piles", "⚡ Prestressed",
+        "🧱 Retaining Wall", "🔺 Truss", "📄 Export/Report"
+    ])
+
+    # ---- BEAMS (0) ----
     with tabs[0]:
         st.subheader("Beam Design")
         beam_mat = st.selectbox("Material", ["Reinforced Concrete", "Steel", "Timber", "Composite"], key="beam_mat")
@@ -419,10 +417,8 @@ elif page == "Structural Analysis":
             if st.button("Check RC Beam", key="check_rc_beam"):
                 fck = CONCRETE_GRADES[grade]["fck"]
                 res = check_rc_beam(b*1e-3, h*1e-3, d*1e-3, fck, M_ed*1e3, V_ed*1e3, span)
-                if res["pass"]:
-                    st.success("✅ Beam OK")
-                else:
-                    st.error("❌ Beam fails check")
+                if res["pass"]: st.success("✅ Beam OK")
+                else: st.error("❌ Beam fails check")
                 st.json(res)
         elif beam_mat == "Steel":
             grade = st.selectbox("Steel Grade", list(STEEL_GRADES.keys()), key="beam_steel_grade")
@@ -433,13 +429,11 @@ elif page == "Structural Analysis":
             if st.button("Check Steel Beam", key="check_steel_beam"):
                 steel = STEEL_GRADES[grade]
                 res = check_steel_beam(section, M_ed*1e3, V_ed*1e3, span, steel)
-                if res["pass"]:
-                    st.success("✅ Beam OK")
-                else:
-                    st.error("❌ Beam fails")
+                if res["pass"]: st.success("✅ Beam OK")
+                else: st.error("❌ Beam fails")
                 st.json(res)
 
-    # ---- COLUMNS ----
+    # ---- COLUMNS (1) ----
     with tabs[1]:
         st.subheader("Column Design")
         col_mat = st.selectbox("Material", ["RC", "Steel", "Timber"], key="col_mat")
@@ -453,13 +447,11 @@ elif page == "Structural Analysis":
             if st.button("Check Column", key="check_col"):
                 fck = CONCRETE_GRADES[grade]["fck"]
                 res = check_rc_column(N_ed*1e3, M_ed*1e3, b*1e-3, h*1e-3, fck, l0)
-                if res["pass"]:
-                    st.success("✅ Column OK")
-                else:
-                    st.error("❌ Column fails")
+                if res["pass"]: st.success("✅ Column OK")
+                else: st.error("❌ Column fails")
                 st.json(res)
 
-    # ---- SLABS ----
+    # ---- SLABS (2) ----
     with tabs[2]:
         st.subheader("Slab Thickness")
         span = st.number_input("Short span (m)", 2.0, 15.0, 5.0, key="slab_span")
@@ -467,7 +459,7 @@ elif page == "Structural Analysis":
         t = slab_thickness_estimate(span, support)
         st.success(f"Recommended thickness: **{t*1000:.0f} mm**")
 
-    # ---- FOUNDATIONS ----
+    # ---- FOUNDATIONS (3) ----
     with tabs[3]:
         st.subheader("Pad Footing Sizing")
         load = st.number_input("Total column load (kN)", 100.0, 10000.0, 500.0, key="fdn_load")
@@ -477,7 +469,7 @@ elif page == "Structural Analysis":
             res = foundation_size(bearing, load, fs)
             st.success(f"Square footing side: **{res['side_m']} m** (area: {res['area_m2']} m²)")
 
-    # ---- WALLS & FINISHES ----
+    # ---- WALLS & FINISHES (4) ----
     with tabs[4]:
         st.subheader("Wall Types & Finishes")
         wall = st.selectbox("Wall Type", list(WALL_TYPES.keys()), key="wall_type")
@@ -488,6 +480,93 @@ elif page == "Structural Analysis":
         st.metric("Total finish load", f"{finish_load:.3f} kN/m²")
         if st.button("Apply to Model", key="apply_wall"):
             st.info("Wall/finish selection saved to project.")
+
+    # ---- PILES (5) ----
+    with tabs[5]:
+        st.subheader("Pile Foundation Design (Simplified EC7)")
+        pile_type = st.selectbox("Pile type", ["Bored", "Driven"], key="pile_type")
+        diameter = st.number_input("Pile diameter (m)", 0.3, 2.0, 0.6, 0.1, key="pile_d")
+        length = st.number_input("Pile length (m)", 5.0, 40.0, 15.0, 1.0, key="pile_L")
+        soil = st.selectbox("Soil type", ["sand", "clay"], key="pile_soil")
+        N = st.number_input("SPT N-value", 5, 60, 20, key="pile_N")
+        safety = st.number_input("Factor of safety", 2.0, 4.0, 2.5, 0.1, key="pile_fs")
+        if st.button("Calculate Capacity", key="pile_calc"):
+            res = pile_capacity(diameter, length, soil, N, safety)
+            st.metric("Allowable Capacity", f"{res['Q_all_kN']} kN")
+            st.write(f"Ultimate capacity: {res['Q_ult_kN']} kN")
+            st.write(f"Shaft resistance: {res['shaft_kN']} kN, Base: {res['base_kN']} kN")
+
+    # ---- PRESTRESSED (6) ----
+    with tabs[6]:
+        st.subheader("Prestressed Concrete Beam (Stress Check)")
+        M_ext = st.number_input("External moment (kNm)", 100.0, 5000.0, 500.0, key="pre_M")
+        P = st.number_input("Prestressing force (kN)", 100.0, 5000.0, 1000.0, key="pre_P")
+        e = st.number_input("Eccentricity (m)", 0.0, 1.0, 0.2, 0.01, key="pre_e")
+        A = st.number_input("Cross-sectional area (m²)", 0.05, 2.0, 0.3, 0.01, key="pre_A")
+        I = st.number_input("Second moment of area I (m⁴)", 0.001, 0.2, 0.01, 0.001, key="pre_I")
+        y_top = st.number_input("y_top (m)", 0.1, 1.0, 0.5, 0.01, key="pre_ytop")
+        y_bot = st.number_input("y_bot (m)", 0.1, 1.0, 0.5, 0.01, key="pre_ybot")
+        fck = st.number_input("fck (MPa)", 20, 60, 35, key="pre_fck")
+        if st.button("Check Stresses", key="pre_check"):
+            res = check_prestressed_beam(M_ext, P, e, A, I, y_top, y_bot, fck)
+            if res["pass"]: st.success("✅ Stresses within limits")
+            else: st.error("❌ Stress limit exceeded")
+            st.write(f"Top stress: {res['sigma_top_MPa']} MPa, Bottom: {res['sigma_bot_MPa']} MPa")
+            st.write(f"Allowable compression: {res['sigma_c_allow']} MPa, tension: {res['sigma_t_allow']} MPa")
+
+    # ---- RETAINING WALL (7) ----
+    with tabs[7]:
+        st.subheader("Cantilever Retaining Wall (Simplified)")
+        H = st.number_input("Wall height (m)", 1.0, 10.0, 3.0, key="rw_H")
+        gamma = st.number_input("Soil unit weight (kN/m³)", 15.0, 22.0, 18.0, key="rw_gamma")
+        phi = st.number_input("Friction angle (°)", 20.0, 45.0, 30.0, key="rw_phi")
+        c = st.number_input("Cohesion (kPa)", 0.0, 50.0, 0.0, key="rw_c")
+        surcharge = st.number_input("Surcharge (kPa)", 0.0, 20.0, 0.0, key="rw_surch")
+        wall_friction = st.number_input("Base friction coefficient", 0.3, 0.8, 0.6, key="rw_fric")
+        if st.button("Check Stability", key="rw_check"):
+            res = retaining_wall_stability(H, gamma, phi, c, surcharge, wall_friction)
+            if res["pass"]: st.success("✅ Wall stable")
+            else: st.error("❌ Stability check failed")
+            st.write(f"Active thrust: {res['Pa_kN']} kN/m")
+            st.write(f"Overturning SF: {res['F_overt']}, Sliding SF: {res['F_sliding']}")
+
+    # ---- TRUSS (8) ----
+    with tabs[8]:
+        st.subheader("2D Truss Solver (coming soon)")
+        st.info("This module will perform method-of-joints analysis. Enter nodes, members, loads.")
+        if st.button("Solve Truss (demo)", key="truss_solve"):
+            res = truss_method_of_joints(None, None, None, None)
+            st.json(res)
+
+    # ---- EXPORT / REPORT (9) ----
+    with tabs[9]:
+        st.subheader("Export Analysis Report (PDF)")
+        st.info("Generate a PDF report of the latest structural analysis results.")
+        if st.button("📄 Generate Report", key="pdf_gen"):
+            report_data = {
+                "Project": "DRUM Sample",
+                "Analysis": "Summary of last checks",
+            }
+            if st.session_state.active_building:
+                plan = st.session_state.active_building.plan
+                area = calculate_total_area(plan)
+                load = compute_floor_loads(plan,
+                    live_load_kN_per_m2=st.session_state.eng_params["live_load"],
+                    slab_thickness_m=st.session_state.eng_params["slab_thickness"],
+                    additional_dead_load_kN_per_m2=st.session_state.eng_params["additional_dead"])
+                report_data["Total Floor Area"] = f"{area:.1f} m²"
+                report_data["Design Load"] = f"{load:.1f} kN"
+                integrity = check_structural_integrity(plan)
+                report_data["Max Span"] = f"{integrity['max_span_m']} m"
+                report_data["Suggested Beam"] = integrity["suggested_beam"]
+
+            filename, error = generate_analysis_report(report_data)
+            if error:
+                st.error(error)
+            else:
+                with open(filename, "rb") as f:
+                    st.download_button("Download PDF Report", f, file_name=filename, mime="application/pdf")
+                st.success("Report generated!")
 
     # ---- BUILDING INTEGRATION ----
     st.markdown("---")
@@ -505,167 +584,10 @@ elif page == "Structural Analysis":
     else:
         st.info("No active building. Evolve or quick‑build one first.")
 
-# ---- PILES ----
-with tabs[7]:
-    st.subheader("Pile Foundation Design (Simplified EC7)")
-    pile_type = st.selectbox("Pile type", ["Bored", "Driven"], key="pile_type")
-    diameter = st.number_input("Pile diameter (m)", 0.3, 2.0, 0.6, 0.1, key="pile_d")
-    length = st.number_input("Pile length (m)", 5.0, 40.0, 15.0, 1.0, key="pile_L")
-    soil = st.selectbox("Soil type", ["sand", "clay"], key="pile_soil")
-    N = st.number_input("SPT N-value", 5, 60, 20, key="pile_N")
-    safety = st.number_input("Factor of safety", 2.0, 4.0, 2.5, 0.1, key="pile_fs")
-    if st.button("Calculate Capacity", key="pile_calc"):
-        res = pile_capacity(diameter, length, soil, N, safety)
-        st.metric("Allowable Capacity", f"{res['Q_all_kN']} kN")
-        st.write(f"Ultimate capacity: {res['Q_ult_kN']} kN")
-        st.write(f"Shaft resistance: {res['shaft_kN']} kN, Base: {res['base_kN']} kN")
-
-# PRESTRESSED CONCRETE BEAM (simplified stress check)
-# =============================
-def check_prestressed_beam(M_ext, P, e, A, I, y_top, y_bot, fck):
-    """
-    Check stresses in a prestressed concrete beam at transfer and service.
-    M_ext: external moment (kNm)
-    P: prestressing force (kN) (after losses)
-    e: eccentricity (m), positive if tendon below centroid
-    A: cross-sectional area (m²)
-    I: second moment of area (m⁴)
-    y_top, y_bot: distances from centroid to top/bottom fibres (m)
-    fck: concrete characteristic strength (MPa)
-    Returns stresses (MPa) and check.
-    """
-    # Convert to N and mm
-    P_N = P * 1e3
-    M_ext_Nmm = M_ext * 1e6
-    A_mm2 = A * 1e6
-    I_mm4 = I * 1e12
-    e_mm = e * 1e3
-    y_top_mm = y_top * 1e3
-    y_bot_mm = y_bot * 1e3
-    fck_MPa = fck
-
-    # Stress at top: sigma_top = -P/A + (P*e*y_top)/I - M_ext*y_top/I  (sign convention: compression negative)
-    sigma_top = -P_N/A_mm2 + (P_N * e_mm * y_top_mm) / I_mm4 - (M_ext_Nmm * y_top_mm) / I_mm4
-    sigma_bot = -P_N/A_mm2 - (P_N * e_mm * y_bot_mm) / I_mm4 + (M_ext_Nmm * y_bot_mm) / I_mm4
-
-    # Allowable stresses (simplified)
-    fctm = 0.3 * fck_MPa**(2/3)   # tensile strength approx.
-    sigma_c_allow = 0.6 * fck_MPa  # compression limit
-    sigma_t_allow = fctm           # tension limit (cracking)
-
-    top_ok = abs(sigma_top) <= sigma_c_allow if sigma_top < 0 else sigma_top <= sigma_t_allow
-    bot_ok = abs(sigma_bot) <= sigma_c_allow if sigma_bot < 0 else sigma_bot <= sigma_t_allow
-
-    return {
-        "sigma_top_MPa": round(sigma_top, 2),
-        "sigma_bot_MPa": round(sigma_bot, 2),
-        "sigma_c_allow": round(sigma_c_allow, 2),
-        "sigma_t_allow": round(sigma_t_allow, 2),
-        "pass": top_ok and bot_ok
-    }
-
-# ---- RETAINING WALL (new) ----
-with tabs[7]:
-    st.subheader("Cantilever Retaining Wall (Simplified)")
-    H = st.number_input("Wall height (m)", 1.0, 10.0, 3.0, key="rw_H")
-    gamma = st.number_input("Soil unit weight (kN/m³)", 15.0, 22.0, 18.0, key="rw_gamma")
-    phi = st.number_input("Friction angle (°)", 20.0, 45.0, 30.0, key="rw_phi")
-    c = st.number_input("Cohesion (kPa)", 0.0, 50.0, 0.0, key="rw_c")
-    surcharge = st.number_input("Surcharge (kPa)", 0.0, 20.0, 0.0, key="rw_surch")
-    wall_friction = st.number_input("Base friction coefficient", 0.3, 0.8, 0.6, key="rw_fric")
-    if st.button("Check Stability", key="rw_check"):
-        res = retaining_wall_stability(H, gamma, phi, c, surcharge, wall_friction)
-        if res["pass"]:
-            st.success("✅ Wall stable")
-        else:
-            st.error("❌ Stability check failed")
-        st.write(f"Active thrust: {res['Pa_kN']} kN/m")
-        st.write(f"Overturning SF: {res['F_overt']}, Sliding SF: {res['F_sliding']}")
-
-# ---- TRUSS (new) ----
-with tabs[8]:
-    st.subheader("2D Truss Solver (coming soon)")
-    st.info("This module will perform method-of-joints analysis. Enter nodes, members, loads.")
-    # Placeholder for future implementation
-    if st.button("Solve Truss (demo)", key="truss_solve"):
-        res = truss_method_of_joints(None, None, None, None)
-        st.json(res)
-
-# ---- EXPORT / REPORT ----
-with tabs[9]:
-    st.subheader("Export Analysis Report (PDF)")
-    st.info("Generate a PDF report of the latest structural analysis results.")
-    if st.button("📄 Generate Report"):
-        # Collect current results from session (example: last check results could be stored)
-        # For demo, create a dummy results dictionary.
-        report_data = {
-            "Project": "Sample",
-            "Beam": "RC Beam check: ...",
-            "Column": "Column check: ...",
-            # In a full app you'd gather actual results.
-        }
-        # You would normally populate with the latest analysis results.
-        # For now, we use the building plan data if available.
-        if st.session_state.active_building:
-            plan = st.session_state.active_building.plan
-            area = calculate_total_area(plan)
-            load = compute_floor_loads(plan,
-                live_load=st.session_state.eng_params["live_load"],
-                slab_thickness=st.session_state.eng_params["slab_thickness"],
-                additional_dead=st.session_state.eng_params["additional_dead"])
-            report_data["Total Floor Area"] = f"{area:.1f} m²"
-            report_data["Design Load"] = f"{load:.1f} kN"
-            integrity = check_structural_integrity(plan)
-            report_data["Max Span"] = f"{integrity['max_span_m']} m"
-            report_data["Suggested Beam"] = integrity["suggested_beam"]
-
-        filename, error = generate_analysis_report(report_data)
-        if error:
-            st.error(error)
-        else:
-            with open(filename, "rb") as f:
-                st.download_button("Download PDF Report", f, file_name=filename, mime="application/pdf")
-            st.success("Report generated!")
-
-# ---- EXPORT / REPORT ----
-with tabs[9]:
-    st.subheader("Export Analysis Report (PDF)")
-    st.info("Generate a PDF report of the latest structural analysis results.")
-    if st.button("📄 Generate Report"):
-        # Collect current results from session (example: last check results could be stored)
-        # For demo, create a dummy results dictionary.
-        report_data = {
-            "Project": "Sample",
-            "Beam": "RC Beam check: ...",
-            "Column": "Column check: ...",
-            # In a full app you'd gather actual results.
-        }
-        # You would normally populate with the latest analysis results.
-        # For now, we use the building plan data if available.
-        if st.session_state.active_building:
-            plan = st.session_state.active_building.plan
-            area = calculate_total_area(plan)
-            load = compute_floor_loads(plan,
-                live_load=st.session_state.eng_params["live_load"],
-                slab_thickness=st.session_state.eng_params["slab_thickness"],
-                additional_dead=st.session_state.eng_params["additional_dead"])
-            report_data["Total Floor Area"] = f"{area:.1f} m²"
-            report_data["Design Load"] = f"{load:.1f} kN"
-            integrity = check_structural_integrity(plan)
-            report_data["Max Span"] = f"{integrity['max_span_m']} m"
-            report_data["Suggested Beam"] = integrity["suggested_beam"]
-
-        filename, error = generate_analysis_report(report_data)
-        if error:
-            st.error(error)
-        else:
-            with open(filename, "rb") as f:
-                st.download_button("Download PDF Report", f, file_name=filename, mime="application/pdf")
-            st.success("Report generated!")
-
 # ======================
 # PAGE: ARCHIVES
 # ======================
+else:  # Archives
     st.title("🗄️ Archives")
     if mem["buildings"]:
         for i, bdict in enumerate(reversed(mem["buildings"])):
