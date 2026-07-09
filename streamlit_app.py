@@ -511,6 +511,50 @@ with tabs[7]:
         st.write(f"Ultimate capacity: {res['Q_ult_kN']} kN")
         st.write(f"Shaft resistance: {res['shaft_kN']} kN, Base: {res['base_kN']} kN")
 
+# PRESTRESSED CONCRETE BEAM (simplified stress check)
+# =============================
+def check_prestressed_beam(M_ext, P, e, A, I, y_top, y_bot, fck):
+    """
+    Check stresses in a prestressed concrete beam at transfer and service.
+    M_ext: external moment (kNm)
+    P: prestressing force (kN) (after losses)
+    e: eccentricity (m), positive if tendon below centroid
+    A: cross-sectional area (m²)
+    I: second moment of area (m⁴)
+    y_top, y_bot: distances from centroid to top/bottom fibres (m)
+    fck: concrete characteristic strength (MPa)
+    Returns stresses (MPa) and check.
+    """
+    # Convert to N and mm
+    P_N = P * 1e3
+    M_ext_Nmm = M_ext * 1e6
+    A_mm2 = A * 1e6
+    I_mm4 = I * 1e12
+    e_mm = e * 1e3
+    y_top_mm = y_top * 1e3
+    y_bot_mm = y_bot * 1e3
+    fck_MPa = fck
+
+    # Stress at top: sigma_top = -P/A + (P*e*y_top)/I - M_ext*y_top/I  (sign convention: compression negative)
+    sigma_top = -P_N/A_mm2 + (P_N * e_mm * y_top_mm) / I_mm4 - (M_ext_Nmm * y_top_mm) / I_mm4
+    sigma_bot = -P_N/A_mm2 - (P_N * e_mm * y_bot_mm) / I_mm4 + (M_ext_Nmm * y_bot_mm) / I_mm4
+
+    # Allowable stresses (simplified)
+    fctm = 0.3 * fck_MPa**(2/3)   # tensile strength approx.
+    sigma_c_allow = 0.6 * fck_MPa  # compression limit
+    sigma_t_allow = fctm           # tension limit (cracking)
+
+    top_ok = abs(sigma_top) <= sigma_c_allow if sigma_top < 0 else sigma_top <= sigma_t_allow
+    bot_ok = abs(sigma_bot) <= sigma_c_allow if sigma_bot < 0 else sigma_bot <= sigma_t_allow
+
+    return {
+        "sigma_top_MPa": round(sigma_top, 2),
+        "sigma_bot_MPa": round(sigma_bot, 2),
+        "sigma_c_allow": round(sigma_c_allow, 2),
+        "sigma_t_allow": round(sigma_t_allow, 2),
+        "pass": top_ok and bot_ok
+    }
+
 # ---- RETAINING WALL (new) ----
 with tabs[7]:
     st.subheader("Cantilever Retaining Wall (Simplified)")
