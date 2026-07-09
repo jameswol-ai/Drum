@@ -86,40 +86,37 @@ h1, h2, h3 { color: #F8FAFC; font-weight: 600; }
 
 # ---------- Unit Helpers ----------
 def input_metric(value, unit_type):
-    """Convert a value from the current unit system to SI."""
     if st.session_state.unit_system == "imperial":
         conversions = {
-            "length": 0.3048,          # ft -> m
-            "length_mm": 0.0254,       # in -> m
-            "area": 0.092903,          # ft² -> m²
-            "force": 4.44822,          # kip -> kN
-            "pressure": 6.89476,       # psi -> kPa
-            "moment": 1.35582,         # kip-ft -> kNm
-            "weight_density": 0.157087 # pcf -> kN/m³
+            "length": 0.3048,
+            "length_mm": 0.0254,
+            "area": 0.092903,
+            "force": 4.44822,
+            "pressure": 6.89476,
+            "moment": 1.35582,
+            "weight_density": 0.157087
         }
         if unit_type in conversions:
             return value * conversions[unit_type]
     return value
 
 def output_metric(value, unit_type):
-    """Convert a value from SI to the current unit system for display."""
     if st.session_state.unit_system == "imperial":
         conversions = {
-            "length": 3.28084,         # m -> ft
-            "length_mm": 39.3701,      # m -> in
-            "area": 10.7639,           # m² -> ft²
-            "force": 0.224809,         # kN -> kip
-            "pressure": 0.145038,      # kPa -> psi
-            "moment": 0.737562,        # kNm -> kip-ft
-            "weight_density": 6.36588, # kN/m³ -> pcf
-            "stress": 0.145038         # MPa -> ksi
+            "length": 3.28084,
+            "length_mm": 39.3701,
+            "area": 10.7639,
+            "force": 0.224809,
+            "pressure": 0.145038,
+            "moment": 0.737562,
+            "weight_density": 6.36588,
+            "stress": 0.145038
         }
         if unit_type in conversions:
             return value * conversions[unit_type]
     return value
 
 def unit_label(unit_type):
-    """Return the display unit for the current system."""
     labels = {
         "length": "m" if st.session_state.unit_system == "metric" else "ft",
         "length_mm": "mm" if st.session_state.unit_system == "metric" else "in",
@@ -150,7 +147,7 @@ if not st.session_state.logged_in:
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.markdown("<br><br>", unsafe_allow_html=True)
-        # Logo SVG
+        # Inline SVG logo
         st.markdown("""
         <div style="text-align:center; margin-bottom:10px;">
             <svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -209,7 +206,7 @@ mem = st.session_state.memory
 
 # ----- SIDEBAR -----
 with st.sidebar:
-    # Logo
+    # Inline SVG logo
     st.markdown("""
     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 15px;">
         <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -267,90 +264,6 @@ with st.sidebar:
 if page == "Project Dashboard":
     st.title("🏢 Project Dashboard")
 
-    # Top metrics if a project is active
-    if st.session_state.active_building:
-        building = st.session_state.active_building
-        col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-        col_m1.metric("Building ID", building.id)
-        col_m2.metric("Rooms", len(building.plan))
-        col_m3.metric("Design Score", building.score)
-        col_m4.metric("Area", f"{output_metric(calculate_total_area(building.plan), 'area'):.1f} {unit_label('area')}")
-
-    st.markdown("---")
-
-    left_col, right_col = st.columns([1, 3])
-
-    with left_col:
-        st.markdown("### 🧰 Project Tools")
-        if st.button("➕ New Project", use_container_width=True):
-            new_building = Building(name=f"Project-{len(mem['buildings'])+1}", score=50)
-            generate_plan(new_building)
-            mem["buildings"].append(new_building.to_dict())
-            st.session_state.active_building = new_building
-            log_event(username, mem, f"Created new project: {new_building.name}")
-            save_memory(username, mem)
-            st.success(f"New project '{new_building.name}' created!")
-            st.rerun()
-
-        if mem["buildings"]:
-            st.markdown("**Saved Projects**")
-            for bdict in reversed(mem["buildings"][-10:]):
-                building = Building.from_dict(bdict)
-                col_a, col_b = st.columns([3,1])
-                with col_a:
-                    if st.button(f"📂 {building.name}", key=f"sel_{building.id}"):
-                        st.session_state.active_building = building
-                        st.rerun()
-                with col_b:
-                    if st.button("🗑️", key=f"del_{building.id}"):
-                        mem["buildings"] = [b for b in mem["buildings"] if b["id"] != building.id]
-                        if st.session_state.active_building and st.session_state.active_building.id == building.id:
-                            st.session_state.active_building = None
-                        save_memory(username, mem)
-                        st.rerun()
-
-        st.markdown("---")
-        st.markdown("### ⚡ Quick Analysis")
-        if st.button("📐 Beam Design", use_container_width=True):
-            st.session_state.page = "Structural Analysis"
-            st.rerun()
-        if st.button("🧱 Column Design", use_container_width=True):
-            st.session_state.page = "Structural Analysis"
-            st.rerun()
-        if st.button("🌍 Foundation", use_container_width=True):
-            st.session_state.page = "Structural Analysis"
-            st.rerun()
-
-    with right_col:
-        if st.session_state.active_building:
-            building = st.session_state.active_building
-            # 2D Plan
-            st.markdown("#### 📐 2D Floor Plan")
-            if building.plan:
-                svg = render_svg_plan(building.plan)
-                st.markdown(f'<div style="background:#0F172A; border-radius:12px; padding:8px; border:1px solid #334155;">{svg}</div>', unsafe_allow_html=True)
-            else:
-                st.info("No plan data.")
-
-            # 3D Isometric View with OrbitControls
-            st.markdown("#### 🧊 Interactive 3D Model")
-            if building.plan:
-                rooms_js = ""
-                for i, room in enumerate(building.plan):
-                    x = room["x"] / 1000
-                    z = room["y"] / 1000
-                    w = room["w"] / 1000
-                    d = room["h"] / 1000
-                    h = 3.0
-                    color = room.get("color", "#4f46e5")
-                    rooms_js += f"""
-            geometry = new THREE.BoxGeometry({w}, {h}, {d});
-            material = new THREE.MeshPhongMaterial({{color: '{color}', opacity: 0.7, transparent: true}});
-            cube = new THREE.Mesh(geometry, material);
-            cube.position.set({x + w/2}, {h/2}, {z + d/2});
-if page == "Project Dashboard":
-    st.title("🏢 Project Dashboard")
-
     # ---- Top metrics for active project ----
     if st.session_state.active_building:
         building = st.session_state.active_building
@@ -369,7 +282,6 @@ if page == "Project Dashboard":
         col_m3.metric("Max Span", f"{output_metric(integrity['max_span_m'], 'length'):.2f} {unit_label('length')}")
         col_m4.metric("Est. Cost", f"${cost['total']:,.0f}")
 
-        # Quick structural verdict
         if integrity['pass']:
             st.success(f"✅ Structural check passed – suggested beam: {integrity['suggested_beam']}")
         else:
@@ -384,7 +296,6 @@ if page == "Project Dashboard":
 
     with left_col:
         st.markdown("### 🧰 Project Tools")
-        # Create new project
         if st.button("➕ New Project", use_container_width=True):
             new_building = Building(name=f"Project-{len(mem['buildings'])+1}", score=50)
             generate_plan(new_building)
@@ -394,7 +305,6 @@ if page == "Project Dashboard":
             save_memory(username, mem)
             st.rerun()
 
-        # Saved projects list
         if mem["buildings"]:
             st.markdown("**Saved Projects**")
             for bdict in reversed(mem["buildings"][-10:]):
@@ -412,7 +322,6 @@ if page == "Project Dashboard":
                         save_memory(username, mem)
                         st.rerun()
 
-        # ---------- NEW FEATURE: Comparison Mode ----------
         st.markdown("---")
         st.markdown("### 📊 Compare Projects")
         if len(mem["buildings"]) >= 2:
@@ -438,13 +347,12 @@ if page == "Project Dashboard":
             building = st.session_state.active_building
             plan = building.plan
 
-            # ---------- NEW FEATURE: Plan Editor ----------
+            # ---- Plan Editor ----
             with st.expander("✏️ Edit Plan (Add / Remove Rooms)", expanded=False):
                 col_edit1, col_edit2 = st.columns(2)
                 with col_edit1:
                     if st.button("➕ Add Room"):
-                        # add a room with random size
-                        w = random.randint(100, 200) * 5   # 500–1000 mm
+                        w = random.randint(100, 200) * 5
                         h = random.randint(100, 200) * 5
                         x = random.randint(0, 700)
                         y = random.randint(0, 400)
@@ -454,7 +362,6 @@ if page == "Project Dashboard":
                             "color": f"hsl({random.randint(0,360)}, 70%, 50%)"
                         })
                         building.plan = plan
-                        # update the saved building
                         for i, b in enumerate(mem["buildings"]):
                             if b["id"] == building.id:
                                 mem["buildings"][i] = building.to_dict()
@@ -488,7 +395,7 @@ if page == "Project Dashboard":
                         save_memory(username, mem)
                         st.rerun()
 
-            # 2D Plan (always visible)
+            # 2D Plan
             st.markdown("#### 📐 2D Floor Plan")
             if plan:
                 svg = render_svg_plan(plan)
@@ -496,7 +403,7 @@ if page == "Project Dashboard":
             else:
                 st.info("No plan data.")
 
-            # 3D Interactive Model
+            # ---- 3D Interactive Model (fixed escaping) ----
             st.markdown("#### 🧊 Interactive 3D Model")
             if plan:
                 rooms_js = ""
@@ -513,7 +420,7 @@ if page == "Project Dashboard":
             cube = new THREE.Mesh(geometry, material);
             cube.position.set({x + w/2}, {h/2}, {z + d/2});
             scene.add(cube);
-            
+            """
                 three_js_html = f"""
             <html>
             <head>
@@ -548,12 +455,12 @@ if page == "Project Dashboard":
                 </script>
             </body>
             </html>
-            
+            """
                 st.components.v1.html(three_js_html, height=500, scrolling=False)
             else:
                 st.info("3D view requires a building plan.")
 
-            # ---------- NEW FEATURE: Cost Breakdown ----------
+            # ---- Cost Breakdown ----
             st.markdown("---")
             with st.expander("💰 Cost & Material Estimate", expanded=False):
                 if st.button("Calculate Estimate", key="calc_cost"):
@@ -563,7 +470,7 @@ if page == "Project Dashboard":
                         "Cost (USD)": [f"${cost['concrete']:,.2f}", f"${cost['steel']:,.2f}", f"${cost['glass']:,.2f}", f"${cost['labor']:,.2f}", f"${cost['total']:,.2f}"]
                     })
 
-            # ---------- NEW FEATURE: Export / Share ----------
+            # ---- Export & Share ----
             st.markdown("---")
             with st.expander("📤 Export & Share", expanded=False):
                 if st.button("📄 Download Plan as SVG"):
@@ -575,12 +482,12 @@ if page == "Project Dashboard":
                     if not error:
                         with open(filename, "rb") as f:
                             st.download_button("Download PDF", f, file_name=filename, mime="application/pdf")
-                st.text_input("Shareable link (copy)", value=f"https://drum-studio.com/project/{building.id}", disabled=True)  # placeholder
+                st.text_input("Shareable link (copy)", value=f"https://drum-studio.com/project/{building.id}", disabled=True)
 
         else:
             st.info("👈 Select a project from the list or create a new one to start.")
 
-    # ---------- NEW FEATURE: Analysis History ----------
+    # ---- Recent Activity ----
     st.markdown("---")
     st.subheader("🕓 Recent Activity")
     if mem["logs"]:
@@ -596,7 +503,6 @@ elif page == "Structural Analysis":
     st.title("🏗️ Structural Analysis Workstation")
     st.caption("All inputs and outputs respect the selected unit system.")
 
-    # Helper for number inputs with unit conversion
     def ui_number_input(label, min_val, max_val, value, step, key, unit_type):
         display_min = output_metric(min_val, unit_type) if st.session_state.unit_system=="imperial" else min_val
         display_max = output_metric(max_val, unit_type) if st.session_state.unit_system=="imperial" else max_val
@@ -806,7 +712,6 @@ else:  # Archives
         for bdict in reversed(mem["buildings"]):
             building = Building.from_dict(bdict)
             with st.expander(f"{building.name} – Score {building.score}"):
-                # 2D plan only in archive
                 if building.plan:
                     svg = render_svg_plan(building.plan)
                     st.markdown(f'<div style="background:#0F172A; border-radius:12px; padding:8px; border:1px solid #334155;">{svg}</div>', unsafe_allow_html=True)
