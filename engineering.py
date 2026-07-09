@@ -236,3 +236,111 @@ def estimate_cost(plan: List[Dict], costs: dict = None) -> Dict[str, float]:
         "labor": round(labor, 2),
         "total": round(total, 2)
     }
+
+# =============================
+# PILE FOUNDATION (simplified, EC7)
+# =============================
+def pile_capacity(diameter, length, soil_type="sand", N_value=20, safety=2.5):
+    """
+    Ultimate capacity of a single bored pile (simplified).
+    diameter in m, length in m.
+    Returns allowable capacity Q_all (kN).
+    """
+    import math
+    if soil_type == "sand":
+        # shaft friction: fs = 2 * N (kPa)  (very simplified)
+        fs = 2 * N_value
+        # base resistance: qb = 50 * N (kPa)
+        qb = 50 * N_value
+    elif soil_type == "clay":
+        fs = 5 * N_value
+        qb = 30 * N_value
+    else:
+        fs = 2 * N_value
+        qb = 30 * N_value
+
+    # shaft area
+    As = math.pi * diameter * length
+    # base area
+    Ab = math.pi * (diameter/2)**2
+    Q_ult = fs * As + qb * Ab   # kN
+    Q_all = Q_ult / safety
+    return {
+        "Q_ult_kN": round(Q_ult, 1),
+        "Q_all_kN": round(Q_all, 1),
+        "shaft_kN": round(fs*As, 1),
+        "base_kN": round(qb*Ab, 1)
+    }
+
+# =============================
+# PRESTRESSED CONCRETE BEAM (simplified stress check)
+# =============================
+def check_prestressed_beam(M_ext, P, e, A, I, y_top, y_bot, fck):
+    """
+    Check stresses in a prestressed concrete beam at transfer and service.
+    M_ext: external moment (kNm)
+    P: prestressing force (kN) (after losses)
+    e: eccentricity (m), positive if tendon below centroid
+    A: cross-sectional area (m²)
+    I: second moment of area (m⁴)
+    y_top, y_bot: distances from centroid to top/bottom fibres (m)
+    fck: concrete characteristic strength (MPa)
+    Returns stresses (MPa) and check.
+    """
+    # Convert to N and mm
+    P_N = P * 1e3
+    M_ext_Nmm = M_ext * 1e6
+    A_mm2 = A * 1e6
+    I_mm4 = I * 1e12
+    e_mm = e * 1e3
+    y_top_mm = y_top * 1e3
+    y_bot_mm = y_bot * 1e3
+    fck_MPa = fck
+
+    # Stress at top: sigma_top = -P/A + (P*e*y_top)/I - M_ext*y_top/I  (sign convention: compression negative)
+    sigma_top = -P_N/A_mm2 + (P_N * e_mm * y_top_mm) / I_mm4 - (M_ext_Nmm * y_top_mm) / I_mm4
+    sigma_bot = -P_N/A_mm2 - (P_N * e_mm * y_bot_mm) / I_mm4 + (M_ext_Nmm * y_bot_mm) / I_mm4
+
+    # Allowable stresses (simplified)
+    fctm = 0.3 * fck_MPa**(2/3)   # tensile strength approx.
+    sigma_c_allow = 0.6 * fck_MPa  # compression limit
+    sigma_t_allow = fctm           # tension limit (cracking)
+
+    top_ok = abs(sigma_top) <= sigma_c_allow if sigma_top < 0 else sigma_top <= sigma_t_allow
+    bot_ok = abs(sigma_bot) <= sigma_c_allow if sigma_bot < 0 else sigma_bot <= sigma_t_allow
+
+    return {
+        "sigma_top_MPa": round(sigma_top, 2),
+        "sigma_bot_MPa": round(sigma_bot, 2),
+        "sigma_c_allow": round(sigma_c_allow, 2),
+        "sigma_t_allow": round(sigma_t_allow, 2),
+        "pass": top_ok and bot_ok
+    }
+
+# =============================
+# PDF REPORT GENERATION (using fpdf2)
+# =============================
+def generate_analysis_report(results_dict, filename="analysis_report.pdf"):
+    """Generate a simple PDF report of analysis results."""
+    try:
+        from fpdf import FPDF
+    except ImportError:
+        return None, "Install fpdf2: pip install fpdf2"
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", "B", 16)
+    pdf.cell(0, 10, "DRUM Studio - Structural Analysis Report", ln=True, align='C')
+    pdf.ln(10)
+    pdf.set_font("Arial", "", 12)
+    for key, value in results_dict.items():
+        if isinstance(value, dict):
+            pdf.set_font("Arial", "B", 12)
+            pdf.cell(0, 8, f"{key}:", ln=True)
+            pdf.set_font("Arial", "", 11)
+            for subkey, subval in value.items():
+                pdf.cell(80, 7, f"  {subkey}: {subval}", ln=True)
+        else:
+            pdf.cell(0, 8, f"{key}: {value}", ln=True)
+    pdf.output(filename)
+    return filename, None
