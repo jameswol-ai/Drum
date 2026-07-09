@@ -4,14 +4,13 @@ import math
 from typing import List, Dict, Any
 
 DEFAULT_COSTS = {
-    "concrete_per_m2": 250,   # $/m²
-    "steel_per_m": 50,        # $/m
-    "glass_per_m2": 150,      # $/m²
-    "labor_per_m2": 100,      # $/m²
+    "concrete_per_m2": 250,
+    "steel_per_m": 50,
+    "glass_per_m2": 150,
+    "labor_per_m2": 100,
 }
 
 def calculate_total_area(plan: List[Dict]) -> float:
-    """Total floor area in m² from plan (x,y,w,h in mm)."""
     area = 0.0
     for room in plan:
         area += (room["w"] * room["h"]) / 1e6
@@ -23,17 +22,15 @@ def compute_floor_loads(
     slab_thickness_m: float = 0.2,
     additional_dead_load_kN_per_m2: float = 1.0
 ) -> float:
-    """Dead + live load for the whole floor (kN)."""
     total_area_m2 = calculate_total_area(plan)
     dead_load_kN = total_area_m2 * (24.0 * slab_thickness_m + additional_dead_load_kN_per_m2)
     live_load_kN = total_area_m2 * live_load_kN_per_m2
     return dead_load_kN + live_load_kN
 
 def check_structural_integrity(plan: List[Dict]) -> Dict[str, Any]:
-    """Max diagonal span → beam size recommendation."""
     max_span_m = 0.0
     for room in plan:
-        diag = math.sqrt(room["w"]**2 + room["h"]**2) / 1000  # mm → m
+        diag = math.sqrt(room["w"]**2 + room["h"]**2) / 1000
         max_span_m = max(max_span_m, diag)
 
     if max_span_m <= 4:
@@ -58,10 +55,9 @@ def calculate_energy_score(
     orientation: str = "south",
     glazing_ratio: float = 0.2
 ) -> float:
-    """Energy score based on glazing ratio and orientation."""
     total_wall_area = 0.0
     for room in plan:
-        perim = 2 * (room["w"] + room["h"]) / 1000  # m
+        perim = 2 * (room["w"] + room["h"]) / 1000
         wall_area = perim * 2.7
         total_wall_area += wall_area
 
@@ -71,7 +67,6 @@ def calculate_energy_score(
     return round(energy_score, 1)
 
 def estimate_cost(plan: List[Dict], costs: dict = None) -> Dict[str, float]:
-    """Itemised cost estimate."""
     if costs is None:
         costs = DEFAULT_COSTS
 
