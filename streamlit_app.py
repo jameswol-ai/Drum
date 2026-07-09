@@ -1,9 +1,10 @@
 # streamlit_app.py
-# DRUM Studio – Game + Professional Structural Analysis Workstation
+# DRUM Studio – Professional Structural Analysis Workstation
 import streamlit as st
 import uuid
 from datetime import datetime
 import random
+import math
 
 from main import (
     load_users, save_users, get_user, create_user, authenticate,
@@ -30,14 +31,13 @@ st.set_page_config(page_title="DRUM Studio", page_icon="🏗️", layout="wide",
                    initial_sidebar_state="expanded",
                    menu_items={"Get Help": None, "Report a bug": None, "About": None})
 
-# ---------- Session State ----------
+# ---------- Session State (engineering-only) ----------
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.username = None
     st.session_state.user_data = None
-    st.session_state.memory = DEFAULT_STATE.copy()
+    st.session_state.memory = DEFAULT_STATE.copy()   # still used for persistence but not for game stuff
     st.session_state.active_building = None
-    st.session_state.config = {"generations": 5, "mutation_rate": 0.1, "population_size": 10}
     st.session_state.unit_system = "metric"
     st.session_state.eng_params = {
         "live_load": 2.5,
@@ -50,12 +50,13 @@ if "logged_in" not in st.session_state:
         "glazing_ratio": 0.2,
         "orientation": "south",
     }
-    st.session_state.page = "Command Center"   # default page
+    st.session_state.page = "Project Dashboard"   # default page
 
+# Auto‑create admin if no users (optional – you can comment out if not needed)
 if not load_users():
     create_user("admin", "admin123", role="admin")
 
-# ---------- CSS ----------
+# ---------- CSS (Engineering Dark Theme) ----------
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
@@ -85,31 +86,6 @@ h1, h2, h3 { color: #F8FAFC; font-weight: 600; }
 """, unsafe_allow_html=True)
 
 # ---------- UI Helpers ----------
-def show_xp_bar(user):
-    level = user["level"]
-    xp = user["xp"]
-    needed = xp_for_level(level)
-    progress = xp / needed if needed > 0 else 1.0
-    st.markdown(f"""
-    <div style="display:flex; align-items:center; gap:10px; margin:10px 0;">
-        <span style="font-weight:600; color:#A78BFA;">LVL {level}</span>
-        <div style="flex:1; height:10px; background:#1E293B; border-radius:5px; overflow:hidden;">
-            <div style="width:{progress*100}%; height:100%; background:linear-gradient(90deg,#F59E0B,#FBBF24);"></div>
-        </div>
-        <span style="font-size:0.8rem; color:#CBD5E1;">{xp}/{needed} XP</span>
-    </div>
-    """, unsafe_allow_html=True)
-
-def render_svg_plan(plan, width=800, height=500):
-    svg = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" style="width:100%; background:#0F172A;">'
-    for item in plan:
-        x, y, w, h = item["x"], item["y"], item["w"], item["h"]
-        color = item.get("color", "#4f46e5")
-        svg += f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="{color}" fill-opacity="0.4" stroke="#94a3b8" stroke-width="2"/>'
-        svg += f'<text x="{x+w/2}" y="{y+h/2}" font-size="12" fill="white" text-anchor="middle" dominant-baseline="middle">{item["name"]}</text>'
-    svg += '</svg>'
-    return svg
-
 def show_building(building, label=""):
     st.subheader(f"🏗️ {label} — {building.name}")
     col1, col2, col3 = st.columns(3)
@@ -135,33 +111,33 @@ def show_building(building, label=""):
         </div>
         """, unsafe_allow_html=True)
     if building.plan:
-        st.markdown(render_svg_plan(building.plan), unsafe_allow_html=True)
+        svg = render_svg_plan(building.plan)
+        st.markdown(f'<div style="background:#0F172A; border-radius:12px; padding:8px; border:1px solid #334155;">{svg}</div>', unsafe_allow_html=True)
 
-def show_rhythm(rhythm):
-    rows = {"Kick": rhythm["kick"], "Snare": rhythm["snare"], "Hi‑Hat": rhythm["hihat"]}
-    html = "<div style='display:flex; flex-direction:column; margin-top:10px;'>"
-    for name, pattern in rows.items():
-        html += f"<div style='display:flex; align-items:center;'><span style='width:60px; color:#CBD5E1;'>{name}</span>"
-        for step in pattern:
-            color = "#FBBF24" if step else "#1E293B"
-            html += f"<div style='width:30px; height:30px; background:{color}; margin:1px; border-radius:4px;'></div>"
-        html += "</div>"
-    html += f"<div style='color:#94A3B8; margin-top:5px;'>BPM: {rhythm['bpm']}</div></div>"
-    st.markdown(html, unsafe_allow_html=True)
+def render_svg_plan(plan, width=800, height=500):
+    svg = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" style="width:100%; background:#0F172A;">'
+    for item in plan:
+        x, y, w, h = item["x"], item["y"], item["w"], item["h"]
+        color = item.get("color", "#4f46e5")
+        svg += f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="{color}" fill-opacity="0.4" stroke="#94a3b8" stroke-width="2"/>'
+        svg += f'<text x="{x+w/2}" y="{y+h/2}" font-size="12" fill="white" text-anchor="middle" dominant-baseline="middle">{item["name"]}</text>'
+    svg += '</svg>'
+    return svg
 
 # ======================
-# LOGIN PAGE
+# LOGIN PAGE (simplified)
 # ======================
 if not st.session_state.logged_in:
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.markdown("<br><br>", unsafe_allow_html=True)
-        st.markdown("<div style='text-align:center;'><span style='font-size:3rem;'>🏗️</span></div>", unsafe_allow_html=True)
+        # Engineering logo (replace with your own)
+        st.markdown("<div style='text-align:center; font-size:3rem;'>🏗️</div>", unsafe_allow_html=True)
         st.markdown("<h1 style='text-align:center; font-weight:700; margin-bottom:0;'>DRUM Studio</h1>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align:center; color:#94A3B8; margin-top:0;'>Structural Engineering & Design</p>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align:center; color:#94A3B8;'>Professional Structural Analysis</p>", unsafe_allow_html=True)
         with st.form("auth_form", clear_on_submit=True):
-            uname = st.text_input("Username", placeholder="Enter your username")
-            pwd = st.text_input("Password", type="password", placeholder="Enter your password")
+            uname = st.text_input("Username", placeholder="Enter username")
+            pwd = st.text_input("Password", type="password", placeholder="Enter password")
             col1_btn, col2_btn = st.columns(2)
             with col1_btn:
                 login_btn = st.form_submit_button("🔑 Login", use_container_width=True)
@@ -175,7 +151,6 @@ if not st.session_state.logged_in:
                     st.session_state.username = uname
                     st.session_state.user_data = user
                     mem = load_memory(uname)
-                    init_quests(uname, mem)
                     st.session_state.memory = mem
                     st.rerun()
                 else:
@@ -192,7 +167,7 @@ if not st.session_state.logged_in:
     st.stop()
 
 # ======================
-# MAIN APP
+# MAIN APP (after login)
 # ======================
 username = st.session_state.username
 user_data = st.session_state.user_data
@@ -200,47 +175,29 @@ mem = st.session_state.memory
 
 # ----- SIDEBAR -----
 with st.sidebar:
-    st.markdown(f"### 👤 {username}")
-    st.caption(user_data.get("role", "user").upper())
-    show_xp_bar(user_data)
-
-    # Quests
-    with st.expander("📜 Quests"):
-        for q in mem.get("quests", []):
-            pct = min(q["progress"]/q["target"], 1.0)
-            st.write(f"{q['desc']} ({q['progress']}/{q['target']})")
-            st.progress(pct)
-        st.write("**Daily**")
-        for dq in mem.get("daily_quests", []):
-            pct = min(dq["progress"]/dq["target"], 1.0)
-            st.write(f"{dq['desc']} ({dq['progress']}/{dq['target']})")
-            st.progress(pct)
+    st.image("https://img.icons8.com/fluency/96/engineer.png", width=80)  # Replace with your logo URL
+    st.markdown(f"### 👷 {username}")
+    st.caption("Structural Engineer")
 
     st.markdown("---")
-    # Navigation – use session_state.page to sync with quick buttons
+    # Navigation (engineering-only)
     page = st.radio("Navigate",
-                    ["Command Center", "Evolution Chamber", "Structural Analysis", "Archives"],
-                    index=["Command Center", "Evolution Chamber", "Structural Analysis", "Archives"].index(st.session_state.page),
+                    ["Project Dashboard", "Structural Analysis", "Archives"],
+                    index=["Project Dashboard", "Structural Analysis", "Archives"].index(st.session_state.page),
                     key="nav_radio")
     st.session_state.page = page
 
-    # Unit system toggle
+    # Unit System Toggle
     unit_choice = st.radio("Unit System", ["metric", "imperial"], index=0, key="unit_radio")
     st.session_state.unit_system = unit_choice
 
-    # Engineering params
-    with st.expander("🔧 Analysis Settings"):
+    # Analysis Settings
+    with st.expander("🔧 Analysis Defaults"):
         st.session_state.eng_params["live_load"] = st.number_input("Live Load (kN/m²)", 1.0, 10.0, 2.5, 0.5, key="live_load")
         st.session_state.eng_params["slab_thickness"] = st.number_input("Slab Thickness (m)", 0.1, 0.5, 0.2, 0.05, key="slab_thick")
         st.session_state.eng_params["additional_dead"] = st.number_input("Additional Dead (kN/m²)", 0.0, 5.0, 1.0, 0.1, key="add_dead")
         st.session_state.eng_params["glazing_ratio"] = st.slider("Glazing Ratio", 0.05, 0.8, 0.2, key="glaz_ratio")
         st.session_state.eng_params["orientation"] = st.selectbox("Orientation", ["north","south","east","west"], key="orient")
-
-    # Game settings
-    with st.expander("⚙️ Game Settings"):
-        st.session_state.config["generations"] = st.slider("Generations", 2, 20, 5, key="gen_slider")
-        st.session_state.config["mutation_rate"] = st.slider("Mutation Rate", 0.0, 1.0, 0.1, 0.05, key="mut_rate")
-        st.session_state.config["population_size"] = st.number_input("Population Size", 2, 50, 10, key="pop_size")
 
     if st.button("🚪 Logout"):
         save_memory(username, mem)
@@ -253,141 +210,46 @@ with st.sidebar:
         st.rerun()
 
 # ======================
-# PAGE: COMMAND CENTER
+# PAGE: PROJECT DASHBOARD
 # ======================
-if page == "Command Center":
-    st.title("📊 Project Dashboard")
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("🏢 Buildings", len(mem["buildings"]))
-    col2.metric("🔄 Sessions", len(mem["sessions"]))
-    col3.metric("🏅 Badges", f"{len(user_data.get('badges', []))}")
-    col4.metric("⚡ XP", f"{user_data.get('xp', 0)} / {xp_for_level(user_data.get('level', 1))}", delta=f"Lv.{user_data.get('level', 1)}")
+if page == "Project Dashboard":
+    st.title("📁 Project Dashboard")
+    st.markdown("Manage your structural projects.")
 
-    st.markdown("---")
-    colA, colB = st.columns([3, 1])
-    with colA:
-        st.subheader("🏗️ Active Project")
-        if st.session_state.active_building:
-            show_building(st.session_state.active_building, "Current")
-            c1, c2 = st.columns(2)
-            if c1.button("🧬 Evolve More", key="cmd_evolve"):
-                st.session_state.page = "Evolution Chamber"
-                st.rerun()
-            if c2.button("🔍 Analyze Structure", key="cmd_analyze"):
-                st.session_state.page = "Structural Analysis"
-                st.rerun()
-        else:
-            st.info("No active project. Create one or load a demo.")
-            if st.button("🏗️ New Random Building", key="cmd_new"):
-                best, trend = simulate_evolution(st.session_state.config)
-                mem["buildings"].append(best.to_dict())
-                mem["sessions"].append({"id": str(uuid.uuid4())[:6], "building_id": best.id, "time": datetime.now().isoformat()})
-                st.session_state.active_building = best
-                log_event(username, mem, f"Quick build: {best.name}")
-                update_quests(username, mem, "evolution", {"plan": best.plan})
-                grant_quest_rewards(username, mem, on_level_up=st.balloons)
-                add_xp(username, int(best.score * 2))
-                st.session_state.user_data = get_user(username)
-                save_memory(username, mem)
-                st.rerun()
-    with colB:
-        st.subheader("📈 Stats")
-        st.write(f"**Generation:** {st.session_state.config['generations']}")
-        st.write(f"**Mutation:** {st.session_state.config['mutation_rate']}")
-        if st.session_state.active_building:
-            st.write(f"**Active Score:** {st.session_state.active_building.score}")
+    # Create new project button
+    if st.button("➕ New Project"):
+        new_building = Building(name=f"Project-{len(mem['buildings'])+1}", score=50)
+        generate_plan(new_building)
+        mem["buildings"].append(new_building.to_dict())
+        st.session_state.active_building = new_building
+        log_event(username, mem, f"Created new project: {new_building.name}")
+        save_memory(username, mem)
+        st.success(f"New project '{new_building.name}' created!")
+        st.rerun()
 
-    st.markdown("---")
-    st.subheader("🕓 Recent Activity")
-    for log in reversed(mem["logs"][-8:]):
-        st.markdown(f"`{log['time'][11:19]}` – {log['msg']}")
-
-    st.markdown("---")
-    st.subheader("⚡ Quick Actions")
-    cols = st.columns(4)
-    with cols[0]:
-        if st.button("🧬 Evolution Chamber", use_container_width=True):
-            st.session_state.page = "Evolution Chamber"
-            st.rerun()
-    with cols[1]:
-        if st.button("🏗️ Structural Analysis", use_container_width=True):
+    st.subheader("Active Project")
+    if st.session_state.active_building:
+        show_building(st.session_state.active_building, "Current")
+        if st.button("🔍 Analyze This Project"):
             st.session_state.page = "Structural Analysis"
             st.rerun()
-    with cols[2]:
-        if st.button("🗄️ Archives", use_container_width=True):
-            st.session_state.page = "Archives"
-            st.rerun()
-    with cols[3]:
-        if st.button("📦 Load Demo", use_container_width=True):
-            demo = Building(name="Demo", score=85)
-            generate_plan(demo)
-            st.session_state.active_building = demo
-            log_event(username, mem, "Loaded demo building")
-            save_memory(username, mem)
-            st.rerun()
+    else:
+        st.info("No active project. Create one or select from the list below.")
 
-# ======================
-# PAGE: EVOLUTION CHAMBER
-# ======================
-elif page == "Evolution Chamber":
-    st.title("🧬 Design Evolution Lab")
-    st.caption("Tune the genetic algorithm parameters and watch your building evolve.")
-
-    col_controls, col_preview = st.columns([1, 2])
-    with col_controls:
-        st.subheader("⚙️ Algorithm Settings")
-        generations = st.slider("Generations", 2, 30, st.session_state.config.get("generations", 5), key="ev_gen")
-        mutation = st.slider("Mutation Rate", 0.0, 1.0, st.session_state.config.get("mutation_rate", 0.1), 0.05, key="ev_mut")
-        pop_size = st.slider("Population Size", 2, 50, st.session_state.config.get("population_size", 10), key="ev_pop")
-        st.session_state.config["generations"] = generations
-        st.session_state.config["mutation_rate"] = mutation
-        st.session_state.config["population_size"] = pop_size
-
-        st.markdown("---")
-        if st.button("🚀 Start Evolution", type="primary", use_container_width=True):
-            with st.spinner("Evolving designs..."):
-                best, trend = simulate_evolution(st.session_state.config)
-                rhythm = generate_rhythm(best)
-                mem["buildings"].append(best.to_dict())
-                mem["rhythms"].append(rhythm)
-                mem["sessions"].append({"id": str(uuid.uuid4())[:6], "building_id": best.id, "time": datetime.now().isoformat()})
-                st.session_state.active_building = best
-                log_event(username, mem, f"Evolved: {best.name} (score {best.score})")
-                update_quests(username, mem, "evolution", {"plan": best.plan})
-                grant_quest_rewards(username, mem, on_level_up=st.balloons)
-                leveled = add_xp(username, int(best.score * 2))
-                st.session_state.user_data = get_user(username)
-                if leveled:
-                    st.balloons()
-                save_memory(username, mem)
-                st.session_state.trend = trend
-            st.success(f"Evolution complete! Best score: {best.score}")
-
-        if st.button("📦 Load Demo Building", use_container_width=True):
-            demo = Building(name="Demo", score=85)
-            generate_plan(demo)
-            st.session_state.active_building = demo
-            log_event(username, mem, "Loaded demo building")
-            save_memory(username, mem)
-            st.rerun()
-
-    with col_preview:
-        st.subheader("📈 Fitness Trend")
-        if "trend" in st.session_state and st.session_state.trend:
-            st.line_chart(st.session_state.trend, use_container_width=True)
-        else:
-            st.info("Run an evolution to see the fitness trend.")
-
-        st.subheader("🏢 Current Best Design")
-        if st.session_state.active_building:
-            show_building(st.session_state.active_building, "Best")
-            if mem["rhythms"] and mem["sessions"]:
-                last = mem["sessions"][-1]
-                if last.get("building_id") == st.session_state.active_building.id:
-                    with st.expander("🥁 View Rhythm"):
-                        show_rhythm(mem["rhythms"][-1])
-        else:
-            st.info("No building yet. Start an evolution or load a demo.")
+    # List all saved projects
+    st.subheader("📂 Saved Projects")
+    if mem["buildings"]:
+        for i, bdict in enumerate(reversed(mem["buildings"])):
+            building = Building.from_dict(bdict)
+            col1, col2 = st.columns([4,1])
+            with col1:
+                st.write(f"**{building.name}** (ID: {building.id}) – Score: {building.score}")
+            with col2:
+                if st.button("Open", key=f"open_{building.id}"):
+                    st.session_state.active_building = building
+                    st.rerun()
+    else:
+        st.write("No projects yet.")
 
 # ======================
 # PAGE: STRUCTURAL ANALYSIS
@@ -582,19 +444,17 @@ elif page == "Structural Analysis":
         integrity = check_structural_integrity(plan)
         st.write(f"Max span: {integrity['max_span_m']} m, Suggested beam: {integrity['suggested_beam']}")
     else:
-        st.info("No active building. Evolve or quick‑build one first.")
+        st.info("No active building. Open a project from the dashboard or create a new one.")
 
 # ======================
 # PAGE: ARCHIVES
 # ======================
 else:  # Archives
-    st.title("🗄️ Archives")
+    st.title("🗄️ Project Archives")
     if mem["buildings"]:
-        for i, bdict in enumerate(reversed(mem["buildings"])):
+        for bdict in reversed(mem["buildings"]):
             building = Building.from_dict(bdict)
             with st.expander(f"{building.name} – Score {building.score}"):
                 show_building(building)
-                if i < len(mem["rhythms"]):
-                    show_rhythm(mem["rhythms"][-i-1])
     else:
-        st.info("No buildings yet. Use the Command Center or Evolution Chamber to create one.")
+        st.info("No projects yet. Go to the Project Dashboard to create one.")
