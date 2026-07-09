@@ -346,6 +346,36 @@ def check_prestressed_beam(M_ext, P, e, A, I, y_top, y_bot, fck):
     }
 
 # =============================
+# RETAINING WALL (simplified)
+# =============================
+def retaining_wall_stability(H, gamma, phi, c=0, surcharge=0, wall_friction=0.6):
+    import math
+    phi_rad = math.radians(phi)
+    Ka = (1 - math.sin(phi_rad)) / (1 + math.sin(phi_rad))
+    Pa = 0.5 * gamma * H**2 * Ka + surcharge * H * Ka
+    M_ot = Pa * H / 3
+    B = 0.4 * H
+    W_wall = 24 * (0.3 * H * 1.0 + B * 0.4 * 1.0)   # kN/m
+    M_res = W_wall * B / 2
+    F_overt = M_res / M_ot if M_ot > 0 else 999
+    R_sliding = W_wall * wall_friction
+    F_sliding = R_sliding / Pa if Pa > 0 else 999
+    return {
+        "Pa_kN": round(Pa, 2),
+        "M_ot_kNm": round(M_ot, 2),
+        "M_res_kNm": round(M_res, 2),
+        "F_overt": round(F_overt, 2),
+        "F_sliding": round(F_sliding, 2),
+        "pass": F_overt >= 1.5 and F_sliding >= 1.5
+    }
+
+# =============================
+# TRUSS SOLVER (placeholder)
+# =============================
+def truss_method_of_joints(nodes, members, loads, supports):
+    # Real implementation requires matrix solution – coming soon
+    return {"status": "Truss solver not fully implemented – coming soon."}
+# =============================
 # PDF REPORT GENERATION (using fpdf2)
 # =============================
 def generate_analysis_report(results_dict, filename="analysis_report.pdf"):
@@ -373,53 +403,3 @@ def generate_analysis_report(results_dict, filename="analysis_report.pdf"):
     pdf.output(filename)
     return filename, None
 
-# =============================
-# RETAINING WALL (simplified Coulomb/Rankine)
-# =============================
-def retaining_wall_stability(H, gamma, phi, c=0, surcharge=0, wall_friction=0.6):
-    """
-    Simple cantilever retaining wall check.
-    H: wall height (m), gamma: soil unit weight (kN/m³), phi: friction angle (°),
-    c: cohesion (kPa), surcharge: kPa, wall_friction: base friction coefficient.
-    Returns overturning and sliding safety factors.
-    """
-    import math
-    phi_rad = math.radians(phi)
-    Ka = (1 - math.sin(phi_rad)) / (1 + math.sin(phi_rad))  # Rankine active
-    # Active earth pressure resultant
-    Pa = 0.5 * gamma * H**2 * Ka + surcharge * H * Ka
-    # Overturning moment about toe (assume triangular distribution)
-    M_ot = Pa * H / 3
-    # Resisting moment (weight of wall – assume T-shaped base for simplicity)
-    # Simplified: assume wall weight = gamma_concrete * volume, base width B = 0.4*H
-    B = 0.4 * H
-    W_wall = 24 * (0.3 * H * 1.0 + B * 0.4 * 1.0)  # stem + base, 1m strip
-    M_res = W_wall * B / 2
-    F_overt = M_res / M_ot if M_ot > 0 else 999
-    # Sliding
-    R_sliding = W_wall * wall_friction
-    F_sliding = R_sliding / Pa if Pa > 0 else 999
-    return {
-        "Pa_kN": round(Pa, 2),
-        "M_ot_kNm": round(M_ot, 2),
-        "M_res_kNm": round(M_res, 2),
-        "F_overt": round(F_overt, 2),
-        "F_sliding": round(F_sliding, 2),
-        "pass": F_overt >= 1.5 and F_sliding >= 1.5
-    }
-
-# =============================
-# TRUSS ANALYSIS (method of joints – simple 2D)
-# =============================
-def truss_method_of_joints(nodes, members, loads, supports):
-    """
-    Very simplified 2D truss solver (placeholder).
-    nodes: list of (x,y) tuples
-    members: list of (node_i, node_j) tuples
-    loads: dict {node_i: (Fx, Fy)}
-    supports: dict {node_i: ('pin'/'roller', direction)}
-    Returns member forces (positive = tension).
-    """
-    # This is a placeholder – real implementation requires matrix solution.
-    # For now, return a message.
-    return {"status": "Truss solver not fully implemented – coming soon."}
