@@ -1,5 +1,5 @@
 # streamlit_app.py
-# DRUM Studio – Professional Structural Analysis Workstation
+# DRUM Studio – Professional Structural Analysis Workstation (full imperial/metric)
 import streamlit as st
 import uuid
 from datetime import datetime
@@ -31,12 +31,12 @@ st.set_page_config(page_title="DRUM Studio", page_icon="🏗️", layout="wide",
                    initial_sidebar_state="expanded",
                    menu_items={"Get Help": None, "Report a bug": None, "About": None})
 
-# ---------- Session State (engineering-only) ----------
+# ---------- Session State ----------
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.username = None
     st.session_state.user_data = None
-    st.session_state.memory = DEFAULT_STATE.copy()   # still used for persistence but not for game stuff
+    st.session_state.memory = DEFAULT_STATE.copy()
     st.session_state.active_building = None
     st.session_state.unit_system = "metric"
     st.session_state.eng_params = {
@@ -50,13 +50,12 @@ if "logged_in" not in st.session_state:
         "glazing_ratio": 0.2,
         "orientation": "south",
     }
-    st.session_state.page = "Project Dashboard"   # default page
+    st.session_state.page = "Project Dashboard"
 
-# Auto‑create admin if no users (optional – you can comment out if not needed)
 if not load_users():
     create_user("admin", "admin123", role="admin")
 
-# ---------- CSS (Engineering Dark Theme) ----------
+# ---------- CSS ----------
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
@@ -84,6 +83,56 @@ h1, h2, h3 { color: #F8FAFC; font-weight: 600; }
 }
 </style>
 """, unsafe_allow_html=True)
+
+# ---------- Helper: convert input to SI based on unit system ----------
+def input_metric(value, unit_type):
+    """Convert a value from the current unit system to SI."""
+    if st.session_state.unit_system == "imperial":
+        # conversions: length -> m, area -> m², force -> kN, pressure -> kPa, moment -> kNm
+        conversions = {
+            "length": ("ft", 0.3048),       # from ft to m
+            "length_mm": ("in", 0.0254),     # from inches to m
+            "area": ("ft2", 0.092903),       # from ft² to m²
+            "force": ("kip", 4.44822),       # from kip to kN
+            "pressure": ("psi", 6.89476),    # from psi to kPa
+            "moment": ("kips-ft", 1.35582),  # from kip-ft to kNm
+            "weight_density": ("pcf", 0.157087),  # from lb/ft³ to kN/m³
+        }
+        if unit_type in conversions:
+            factor = conversions[unit_type][1]
+            return value * factor
+    return value  # metric – already SI
+
+def output_metric(value, unit_type):
+    """Convert a value from SI to the current unit system for display."""
+    if st.session_state.unit_system == "imperial":
+        conversions = {
+            "length": ("ft", 3.28084),
+            "length_mm": ("in", 39.3701),
+            "area": ("ft2", 10.7639),
+            "force": ("kip", 0.224809),
+            "pressure": ("psi", 0.145038),
+            "moment": ("kips-ft", 0.737562),
+            "weight_density": ("pcf", 6.36588),
+            "stress": ("ksi", 0.145038),   # MPa to ksi
+        }
+        if unit_type in conversions:
+            return value * conversions[unit_type][1]
+    return value
+
+def unit_label(unit_type):
+    """Return the display unit for the current system."""
+    labels = {
+        "length": "m" if st.session_state.unit_system == "metric" else "ft",
+        "length_mm": "mm" if st.session_state.unit_system == "metric" else "in",
+        "area": "m²" if st.session_state.unit_system == "metric" else "ft²",
+        "force": "kN" if st.session_state.unit_system == "metric" else "kip",
+        "pressure": "kPa" if st.session_state.unit_system == "metric" else "psi",
+        "moment": "kNm" if st.session_state.unit_system == "metric" else "kip-ft",
+        "weight_density": "kN/m³" if st.session_state.unit_system == "metric" else "pcf",
+        "stress": "MPa" if st.session_state.unit_system == "metric" else "ksi",
+    }
+    return labels.get(unit_type, "")
 
 # ---------- UI Helpers ----------
 def show_building(building, label=""):
@@ -125,13 +174,12 @@ def render_svg_plan(plan, width=800, height=500):
     return svg
 
 # ======================
-# LOGIN PAGE (simplified)
+# LOGIN PAGE
 # ======================
 if not st.session_state.logged_in:
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.markdown("<br><br>", unsafe_allow_html=True)
-        # Engineering logo (replace with your own)
         st.markdown("<div style='text-align:center; font-size:3rem;'>🏗️</div>", unsafe_allow_html=True)
         st.markdown("<h1 style='text-align:center; font-weight:700; margin-bottom:0;'>DRUM Studio</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align:center; color:#94A3B8;'>Professional Structural Analysis</p>", unsafe_allow_html=True)
@@ -143,7 +191,6 @@ if not st.session_state.logged_in:
                 login_btn = st.form_submit_button("🔑 Login", use_container_width=True)
             with col2_btn:
                 register_btn = st.form_submit_button("✨ Register", use_container_width=True)
-
             if login_btn:
                 user = authenticate(uname, pwd)
                 if user:
@@ -167,7 +214,7 @@ if not st.session_state.logged_in:
     st.stop()
 
 # ======================
-# MAIN APP (after login)
+# MAIN APP
 # ======================
 username = st.session_state.username
 user_data = st.session_state.user_data
@@ -175,28 +222,26 @@ mem = st.session_state.memory
 
 # ----- SIDEBAR -----
 with st.sidebar:
-    st.image("https://img.icons8.com/fluency/96/engineer.png", width=80)  # Replace with your logo URL
+    st.image("https://img.icons8.com/fluency/96/engineer.png", width=80)
     st.markdown(f"### 👷 {username}")
     st.caption("Structural Engineer")
-
     st.markdown("---")
-    # Navigation (engineering-only)
     page = st.radio("Navigate",
                     ["Project Dashboard", "Structural Analysis", "Archives"],
                     index=["Project Dashboard", "Structural Analysis", "Archives"].index(st.session_state.page),
                     key="nav_radio")
     st.session_state.page = page
-
-    # Unit System Toggle
     unit_choice = st.radio("Unit System", ["metric", "imperial"], index=0, key="unit_radio")
     st.session_state.unit_system = unit_choice
 
-    # Analysis Settings
     with st.expander("🔧 Analysis Defaults"):
-        st.session_state.eng_params["live_load"] = st.number_input("Live Load (kN/m²)", 1.0, 10.0, 2.5, 0.5, key="live_load")
-        st.session_state.eng_params["slab_thickness"] = st.number_input("Slab Thickness (m)", 0.1, 0.5, 0.2, 0.05, key="slab_thick")
-        st.session_state.eng_params["additional_dead"] = st.number_input("Additional Dead (kN/m²)", 0.0, 5.0, 1.0, 0.1, key="add_dead")
-        st.session_state.eng_params["glazing_ratio"] = st.slider("Glazing Ratio", 0.05, 0.8, 0.2, key="glaz_ratio")
+        st.session_state.eng_params["live_load"] = st.number_input(
+            f"Live Load ({unit_label('pressure')})", 1.0, 10.0, st.session_state.eng_params["live_load"], 0.5, key="live_load")
+        st.session_state.eng_params["slab_thickness"] = st.number_input(
+            f"Slab Thickness ({unit_label('length')})", 0.1, 0.5, st.session_state.eng_params["slab_thickness"], 0.05, key="slab_thick")
+        st.session_state.eng_params["additional_dead"] = st.number_input(
+            f"Additional Dead ({unit_label('pressure')})", 0.0, 5.0, st.session_state.eng_params["additional_dead"], 0.1, key="add_dead")
+        st.session_state.eng_params["glazing_ratio"] = st.slider("Glazing Ratio", 0.05, 0.8, st.session_state.eng_params["glazing_ratio"], key="glaz_ratio")
         st.session_state.eng_params["orientation"] = st.selectbox("Orientation", ["north","south","east","west"], key="orient")
 
     if st.button("🚪 Logout"):
@@ -214,9 +259,6 @@ with st.sidebar:
 # ======================
 if page == "Project Dashboard":
     st.title("📁 Project Dashboard")
-    st.markdown("Manage your structural projects.")
-
-    # Create new project button
     if st.button("➕ New Project"):
         new_building = Building(name=f"Project-{len(mem['buildings'])+1}", score=50)
         generate_plan(new_building)
@@ -227,7 +269,6 @@ if page == "Project Dashboard":
         st.success(f"New project '{new_building.name}' created!")
         st.rerun()
 
-    st.subheader("Active Project")
     if st.session_state.active_building:
         show_building(st.session_state.active_building, "Current")
         if st.button("🔍 Analyze This Project"):
@@ -236,10 +277,8 @@ if page == "Project Dashboard":
     else:
         st.info("No active project. Create one or select from the list below.")
 
-    # List all saved projects
-    st.subheader("📂 Saved Projects")
     if mem["buildings"]:
-        for i, bdict in enumerate(reversed(mem["buildings"])):
+        for bdict in reversed(mem["buildings"]):
             building = Building.from_dict(bdict)
             col1, col2 = st.columns([4,1])
             with col1:
@@ -252,11 +291,21 @@ if page == "Project Dashboard":
         st.write("No projects yet.")
 
 # ======================
-# PAGE: STRUCTURAL ANALYSIS
+# PAGE: STRUCTURAL ANALYSIS (with full imperial conversion)
 # ======================
 elif page == "Structural Analysis":
     st.title("🏗️ Structural Analysis Workstation")
-    st.caption("Design & check beams, columns, slabs, foundations, walls, piles, prestressed, retaining walls, trusses, and export reports.")
+    st.caption("All inputs and outputs respect the selected unit system.")
+
+    # Helper lambda for input widgets (uses input_metric)
+    def ui_number_input(label, min_val, max_val, value, step, key, unit_type):
+        display_min = output_metric(min_val, unit_type) if st.session_state.unit_system=="imperial" else min_val
+        display_max = output_metric(max_val, unit_type) if st.session_state.unit_system=="imperial" else max_val
+        display_value = output_metric(value, unit_type) if st.session_state.unit_system=="imperial" else value
+        display_step = output_metric(step, unit_type) if st.session_state.unit_system=="imperial" else step
+        user_val = st.number_input(label, min_value=float(display_min), max_value=float(display_max),
+                                   value=float(display_value), step=float(display_step), key=key)
+        return input_metric(user_val, unit_type)
 
     tabs = st.tabs([
         "📐 Beams", "🧱 Columns", "🔲 Slabs", "🌍 Foundations",
@@ -270,29 +319,35 @@ elif page == "Structural Analysis":
         beam_mat = st.selectbox("Material", ["Reinforced Concrete", "Steel", "Timber", "Composite"], key="beam_mat")
         if beam_mat == "Reinforced Concrete":
             grade = st.selectbox("Concrete Grade", list(CONCRETE_GRADES.keys()), key="beam_rc_grade")
-            b = st.number_input("Width (mm)", 100, 1000, 300, key="beam_b")
-            h = st.number_input("Total height (mm)", 200, 2000, 500, key="beam_h")
-            d = h - 50
-            span = st.number_input("Span (m)", 1.0, 30.0, 6.0, key="beam_span")
-            M_ed = st.number_input("Design Moment M_Ed (kNm)", 10.0, 1000.0, 120.0, key="beam_Med")
-            V_ed = st.number_input("Design Shear V_Ed (kN)", 10.0, 500.0, 80.0, key="beam_Ved")
+            b = ui_number_input(f"Width ({unit_label('length_mm')})", 100, 1000, 300, 10, "beam_b", "length_mm")
+            h = ui_number_input(f"Total height ({unit_label('length_mm')})", 200, 2000, 500, 10, "beam_h", "length_mm")
+            d = h - 50e-3  # assume 50 mm cover
+            span = ui_number_input(f"Span ({unit_label('length')})", 1.0, 30.0, 6.0, 0.1, "beam_span", "length")
+            M_ed = ui_number_input(f"Design Moment M_Ed ({unit_label('moment')})", 10.0, 1000.0, 120.0, 1.0, "beam_Med", "moment")
+            V_ed = ui_number_input(f"Design Shear V_Ed ({unit_label('force')})", 10.0, 500.0, 80.0, 1.0, "beam_Ved", "force")
             if st.button("Check RC Beam", key="check_rc_beam"):
-                fck = CONCRETE_GRADES[grade]["fck"]
-                res = check_rc_beam(b*1e-3, h*1e-3, d*1e-3, fck, M_ed*1e3, V_ed*1e3, span)
-                if res["pass"]: st.success("✅ Beam OK")
-                else: st.error("❌ Beam fails check")
+                fck = CONCRETE_GRADES[grade]["fck"]  # MPa
+                res = check_rc_beam(b, h, d, fck, M_ed, V_ed, span)
+                if res["pass"]:
+                    st.success("✅ Beam OK")
+                else:
+                    st.error("❌ Beam fails check")
+                # Convert output to current units
+                st.write(f"As required: {output_metric(res['As_req'], 'area'):.2f} {unit_label('area')}")
                 st.json(res)
         elif beam_mat == "Steel":
             grade = st.selectbox("Steel Grade", list(STEEL_GRADES.keys()), key="beam_steel_grade")
             section = st.selectbox("Section", ["IPE 160", "IPE 220", "IPE 300"], key="beam_sec")
-            span = st.number_input("Span (m)", 2.0, 20.0, 6.0, key="beam_span_steel")
-            M_ed = st.number_input("M_Ed (kNm)", 50.0, 500.0, 100.0, key="beam_Med_steel")
-            V_ed = st.number_input("V_Ed (kN)", 20.0, 300.0, 50.0, key="beam_Ved_steel")
+            span = ui_number_input(f"Span ({unit_label('length')})", 2.0, 20.0, 6.0, 0.1, "beam_span_steel", "length")
+            M_ed = ui_number_input(f"M_Ed ({unit_label('moment')})", 50.0, 500.0, 100.0, 1.0, "beam_Med_steel", "moment")
+            V_ed = ui_number_input(f"V_Ed ({unit_label('force')})", 20.0, 300.0, 50.0, 1.0, "beam_Ved_steel", "force")
             if st.button("Check Steel Beam", key="check_steel_beam"):
                 steel = STEEL_GRADES[grade]
-                res = check_steel_beam(section, M_ed*1e3, V_ed*1e3, span, steel)
+                res = check_steel_beam(section, M_ed, V_ed, span, steel)
                 if res["pass"]: st.success("✅ Beam OK")
                 else: st.error("❌ Beam fails")
+                st.write(f"Utilization: {res['utilization']:.2f}")
+                st.write(f"Deflection: {output_metric(res['deflection_mm']/1000, 'length'):.3f} {unit_label('length')}")
                 st.json(res)
 
     # ---- COLUMNS (1) ----
@@ -300,46 +355,50 @@ elif page == "Structural Analysis":
         st.subheader("Column Design")
         col_mat = st.selectbox("Material", ["RC", "Steel", "Timber"], key="col_mat")
         if col_mat == "RC":
-            N_ed = st.number_input("Axial load N_Ed (kN)", 100.0, 5000.0, 500.0, key="col_Ned")
-            M_ed = st.number_input("Moment M_Ed (kNm)", 0.0, 500.0, 20.0, key="col_Med")
-            b = st.number_input("Width (mm)", 200, 1000, 300, key="col_b")
-            h = st.number_input("Depth (mm)", 200, 1000, 300, key="col_h")
-            l0 = st.number_input("Effective length (m)", 2.0, 10.0, 3.0, key="col_l0")
+            N_ed = ui_number_input(f"Axial load N_Ed ({unit_label('force')})", 100.0, 5000.0, 500.0, 10.0, "col_Ned", "force")
+            M_ed = ui_number_input(f"Moment M_Ed ({unit_label('moment')})", 0.0, 500.0, 20.0, 1.0, "col_Med", "moment")
+            b = ui_number_input(f"Width ({unit_label('length_mm')})", 200, 1000, 300, 10, "col_b", "length_mm")
+            h = ui_number_input(f"Depth ({unit_label('length_mm')})", 200, 1000, 300, 10, "col_h", "length_mm")
+            l0 = ui_number_input(f"Effective length ({unit_label('length')})", 2.0, 10.0, 3.0, 0.1, "col_l0", "length")
             grade = st.selectbox("Concrete Grade", list(CONCRETE_GRADES.keys()), key="col_grade")
             if st.button("Check Column", key="check_col"):
                 fck = CONCRETE_GRADES[grade]["fck"]
-                res = check_rc_column(N_ed*1e3, M_ed*1e3, b*1e-3, h*1e-3, fck, l0)
+                res = check_rc_column(N_ed, M_ed, b, h, fck, l0)
                 if res["pass"]: st.success("✅ Column OK")
                 else: st.error("❌ Column fails")
+                st.write(f"N_Rd: {output_metric(res['N_rd'], 'force'):.1f} {unit_label('force')}")
                 st.json(res)
 
     # ---- SLABS (2) ----
     with tabs[2]:
         st.subheader("Slab Thickness")
-        span = st.number_input("Short span (m)", 2.0, 15.0, 5.0, key="slab_span")
+        span = ui_number_input(f"Short span ({unit_label('length')})", 2.0, 15.0, 5.0, 0.1, "slab_span", "length")
         support = st.selectbox("Support", ["simply_supported", "continuous"], key="slab_support")
-        t = slab_thickness_estimate(span, support)
-        st.success(f"Recommended thickness: **{t*1000:.0f} mm**")
+        t = slab_thickness_estimate(span, support)  # returns m
+        st.success(f"Recommended thickness: **{output_metric(t*1000, 'length_mm'):.0f} {unit_label('length_mm')}**")
 
     # ---- FOUNDATIONS (3) ----
     with tabs[3]:
         st.subheader("Pad Footing Sizing")
-        load = st.number_input("Total column load (kN)", 100.0, 10000.0, 500.0, key="fdn_load")
-        bearing = st.number_input("Allowable bearing pressure (kN/m²)", 50.0, 500.0, 150.0, key="fdn_bearing")
-        fs = st.number_input("Factor of safety", 2.0, 5.0, 3.0, key="fdn_fs")
+        load = ui_number_input(f"Total column load ({unit_label('force')})", 100.0, 10000.0, 500.0, 10.0, "fdn_load", "force")
+        bearing = ui_number_input(f"Allowable bearing pressure ({unit_label('pressure')})", 50.0, 500.0, 150.0, 10.0, "fdn_bearing", "pressure")
+        fs = st.number_input("Factor of safety", 2.0, 5.0, 3.0, 0.1, key="fdn_fs")
         if st.button("Size Footing", key="size_fdn"):
             res = foundation_size(bearing, load, fs)
-            st.success(f"Square footing side: **{res['side_m']} m** (area: {res['area_m2']} m²)")
+            st.success(f"Square footing side: **{output_metric(res['side_m'], 'length'):.2f} {unit_label('length')}** (area: {output_metric(res['area_m2'], 'area'):.2f} {unit_label('area')})")
 
     # ---- WALLS & FINISHES (4) ----
     with tabs[4]:
         st.subheader("Wall Types & Finishes")
         wall = st.selectbox("Wall Type", list(WALL_TYPES.keys()), key="wall_type")
         props = WALL_TYPES[wall]
-        st.write(f"Weight: {props['weight']} kN/m², U‑value: {props['U']} W/m²K, Sound: {props['sound']} dB")
+        # weight is in kN/m², convert if needed
+        weight_disp = output_metric(props['weight'], 'pressure') if st.session_state.unit_system=="imperial" else props['weight']
+        st.write(f"Weight: {weight_disp:.2f} {unit_label('pressure')}, U‑value: {props['U']} W/m²K, Sound: {props['sound']} dB")
         finishes = st.multiselect("Finishes", list(FINISHES.keys()), default=["Plaster (internal)", "Paint"], key="finishes")
-        finish_load = sum(FINISHES[f] for f in finishes)
-        st.metric("Total finish load", f"{finish_load:.3f} kN/m²")
+        finish_load = sum(FINISHES[f] for f in finishes)  # kN/m²
+        finish_disp = output_metric(finish_load, 'pressure') if st.session_state.unit_system=="imperial" else finish_load
+        st.metric("Total finish load", f"{finish_disp:.3f} {unit_label('pressure')}")
         if st.button("Apply to Model", key="apply_wall"):
             st.info("Wall/finish selection saved to project.")
 
@@ -347,50 +406,53 @@ elif page == "Structural Analysis":
     with tabs[5]:
         st.subheader("Pile Foundation Design (Simplified EC7)")
         pile_type = st.selectbox("Pile type", ["Bored", "Driven"], key="pile_type")
-        diameter = st.number_input("Pile diameter (m)", 0.3, 2.0, 0.6, 0.1, key="pile_d")
-        length = st.number_input("Pile length (m)", 5.0, 40.0, 15.0, 1.0, key="pile_L")
+        diameter = ui_number_input(f"Pile diameter ({unit_label('length')})", 0.3, 2.0, 0.6, 0.1, "pile_d", "length")
+        length = ui_number_input(f"Pile length ({unit_label('length')})", 5.0, 40.0, 15.0, 1.0, "pile_L", "length")
         soil = st.selectbox("Soil type", ["sand", "clay"], key="pile_soil")
         N = st.number_input("SPT N-value", 5, 60, 20, key="pile_N")
         safety = st.number_input("Factor of safety", 2.0, 4.0, 2.5, 0.1, key="pile_fs")
         if st.button("Calculate Capacity", key="pile_calc"):
             res = pile_capacity(diameter, length, soil, N, safety)
-            st.metric("Allowable Capacity", f"{res['Q_all_kN']} kN")
-            st.write(f"Ultimate capacity: {res['Q_ult_kN']} kN")
-            st.write(f"Shaft resistance: {res['shaft_kN']} kN, Base: {res['base_kN']} kN")
+            st.metric("Allowable Capacity", f"{output_metric(res['Q_all_kN'], 'force'):.1f} {unit_label('force')}")
+            st.write(f"Ultimate capacity: {output_metric(res['Q_ult_kN'], 'force'):.1f} {unit_label('force')}")
+            st.write(f"Shaft resistance: {output_metric(res['shaft_kN'], 'force'):.1f} {unit_label('force')}, Base: {output_metric(res['base_kN'], 'force'):.1f} {unit_label('force')}")
 
     # ---- PRESTRESSED (6) ----
     with tabs[6]:
         st.subheader("Prestressed Concrete Beam (Stress Check)")
-        M_ext = st.number_input("External moment (kNm)", 100.0, 5000.0, 500.0, key="pre_M")
-        P = st.number_input("Prestressing force (kN)", 100.0, 5000.0, 1000.0, key="pre_P")
-        e = st.number_input("Eccentricity (m)", 0.0, 1.0, 0.2, 0.01, key="pre_e")
-        A = st.number_input("Cross-sectional area (m²)", 0.05, 2.0, 0.3, 0.01, key="pre_A")
-        I = st.number_input("Second moment of area I (m⁴)", 0.001, 0.2, 0.01, 0.001, key="pre_I")
-        y_top = st.number_input("y_top (m)", 0.1, 1.0, 0.5, 0.01, key="pre_ytop")
-        y_bot = st.number_input("y_bot (m)", 0.1, 1.0, 0.5, 0.01, key="pre_ybot")
+        M_ext = ui_number_input(f"External moment ({unit_label('moment')})", 100.0, 5000.0, 500.0, 10.0, "pre_M", "moment")
+        P = ui_number_input(f"Prestressing force ({unit_label('force')})", 100.0, 5000.0, 1000.0, 10.0, "pre_P", "force")
+        e = ui_number_input(f"Eccentricity ({unit_label('length')})", 0.0, 1.0, 0.2, 0.01, "pre_e", "length")
+        A = ui_number_input(f"Cross-sectional area ({unit_label('area')})", 0.05, 2.0, 0.3, 0.01, "pre_A", "area")
+        I = st.number_input("Second moment of area I (m⁴)", 0.001, 0.2, 0.01, 0.001, key="pre_I")  # always m⁴
+        y_top = ui_number_input(f"y_top ({unit_label('length')})", 0.1, 1.0, 0.5, 0.01, "pre_ytop", "length")
+        y_bot = ui_number_input(f"y_bot ({unit_label('length')})", 0.1, 1.0, 0.5, 0.01, "pre_ybot", "length")
         fck = st.number_input("fck (MPa)", 20, 60, 35, key="pre_fck")
         if st.button("Check Stresses", key="pre_check"):
             res = check_prestressed_beam(M_ext, P, e, A, I, y_top, y_bot, fck)
             if res["pass"]: st.success("✅ Stresses within limits")
             else: st.error("❌ Stress limit exceeded")
-            st.write(f"Top stress: {res['sigma_top_MPa']} MPa, Bottom: {res['sigma_bot_MPa']} MPa")
-            st.write(f"Allowable compression: {res['sigma_c_allow']} MPa, tension: {res['sigma_t_allow']} MPa")
+            # stresses are in MPa; convert to current unit
+            st.write(f"Top stress: {output_metric(res['sigma_top_MPa'], 'stress'):.2f} {unit_label('stress')}")
+            st.write(f"Bottom stress: {output_metric(res['sigma_bot_MPa'], 'stress'):.2f} {unit_label('stress')}")
+            st.write(f"Allowable compression: {output_metric(res['sigma_c_allow'], 'stress'):.2f} {unit_label('stress')}")
+            st.write(f"Allowable tension: {output_metric(res['sigma_t_allow'], 'stress'):.2f} {unit_label('stress')}")
 
     # ---- RETAINING WALL (7) ----
     with tabs[7]:
         st.subheader("Cantilever Retaining Wall (Simplified)")
-        H = st.number_input("Wall height (m)", 1.0, 10.0, 3.0, key="rw_H")
-        gamma = st.number_input("Soil unit weight (kN/m³)", 15.0, 22.0, 18.0, key="rw_gamma")
+        H = ui_number_input(f"Wall height ({unit_label('length')})", 1.0, 10.0, 3.0, 0.1, "rw_H", "length")
+        gamma = ui_number_input(f"Soil unit weight ({unit_label('weight_density')})", 15.0, 22.0, 18.0, 0.1, "rw_gamma", "weight_density")
         phi = st.number_input("Friction angle (°)", 20.0, 45.0, 30.0, key="rw_phi")
-        c = st.number_input("Cohesion (kPa)", 0.0, 50.0, 0.0, key="rw_c")
-        surcharge = st.number_input("Surcharge (kPa)", 0.0, 20.0, 0.0, key="rw_surch")
+        c = ui_number_input(f"Cohesion ({unit_label('pressure')})", 0.0, 50.0, 0.0, 0.1, "rw_c", "pressure")
+        surcharge = ui_number_input(f"Surcharge ({unit_label('pressure')})", 0.0, 20.0, 0.0, 0.1, "rw_surch", "pressure")
         wall_friction = st.number_input("Base friction coefficient", 0.3, 0.8, 0.6, key="rw_fric")
         if st.button("Check Stability", key="rw_check"):
             res = retaining_wall_stability(H, gamma, phi, c, surcharge, wall_friction)
             if res["pass"]: st.success("✅ Wall stable")
             else: st.error("❌ Stability check failed")
-            st.write(f"Active thrust: {res['Pa_kN']} kN/m")
-            st.write(f"Overturning SF: {res['F_overt']}, Sliding SF: {res['F_sliding']}")
+            st.write(f"Active thrust: {output_metric(res['Pa_kN'], 'force'):.2f} {unit_label('force')}/m")
+            st.write(f"Overturning SF: {res['F_overt']:.2f}, Sliding SF: {res['F_sliding']:.2f}")
 
     # ---- TRUSS (8) ----
     with tabs[8]:
@@ -403,12 +465,8 @@ elif page == "Structural Analysis":
     # ---- EXPORT / REPORT (9) ----
     with tabs[9]:
         st.subheader("Export Analysis Report (PDF)")
-        st.info("Generate a PDF report of the latest structural analysis results.")
         if st.button("📄 Generate Report", key="pdf_gen"):
-            report_data = {
-                "Project": "DRUM Sample",
-                "Analysis": "Summary of last checks",
-            }
+            report_data = {"Project": "DRUM Sample", "Analysis": "Summary of last checks"}
             if st.session_state.active_building:
                 plan = st.session_state.active_building.plan
                 area = calculate_total_area(plan)
@@ -416,12 +474,11 @@ elif page == "Structural Analysis":
                     live_load_kN_per_m2=st.session_state.eng_params["live_load"],
                     slab_thickness_m=st.session_state.eng_params["slab_thickness"],
                     additional_dead_load_kN_per_m2=st.session_state.eng_params["additional_dead"])
-                report_data["Total Floor Area"] = f"{area:.1f} m²"
-                report_data["Design Load"] = f"{load:.1f} kN"
+                report_data["Total Floor Area"] = f"{output_metric(area, 'area'):.1f} {unit_label('area')}"
+                report_data["Design Load"] = f"{output_metric(load, 'force'):.1f} {unit_label('force')}"
                 integrity = check_structural_integrity(plan)
-                report_data["Max Span"] = f"{integrity['max_span_m']} m"
+                report_data["Max Span"] = f"{output_metric(integrity['max_span_m'], 'length'):.2f} {unit_label('length')}"
                 report_data["Suggested Beam"] = integrity["suggested_beam"]
-
             filename, error = generate_analysis_report(report_data)
             if error:
                 st.error(error)
@@ -440,9 +497,9 @@ elif page == "Structural Analysis":
             live_load_kN_per_m2=st.session_state.eng_params["live_load"],
             slab_thickness_m=st.session_state.eng_params["slab_thickness"],
             additional_dead_load_kN_per_m2=st.session_state.eng_params["additional_dead"])
-        st.write(f"Total floor area: {area:.1f} m², Design load: {load:.1f} kN")
+        st.write(f"Total floor area: {output_metric(area, 'area'):.1f} {unit_label('area')}, Design load: {output_metric(load, 'force'):.1f} {unit_label('force')}")
         integrity = check_structural_integrity(plan)
-        st.write(f"Max span: {integrity['max_span_m']} m, Suggested beam: {integrity['suggested_beam']}")
+        st.write(f"Max span: {output_metric(integrity['max_span_m'], 'length'):.2f} {unit_label('length')}, Suggested beam: {integrity['suggested_beam']}")
     else:
         st.info("No active building. Open a project from the dashboard or create a new one.")
 
