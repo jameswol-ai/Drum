@@ -166,3 +166,74 @@ def structural_analysis_page():
         st.write(f"Max span: {integrity['max_span_m']} m, Suggested beam: {integrity['suggested_beam']}")
     else:
         st.info("No active building.")
+
+# ---- PILES ----
+with tabs[7]:
+    st.subheader("Pile Foundation Design (Simplified EC7)")
+    pile_type = st.selectbox("Pile type", ["Bored", "Driven"], key="pile_type")
+    diameter = st.number_input("Pile diameter (m)", 0.3, 2.0, 0.6, 0.1, key="pile_d")
+    length = st.number_input("Pile length (m)", 5.0, 40.0, 15.0, 1.0, key="pile_L")
+    soil = st.selectbox("Soil type", ["sand", "clay"], key="pile_soil")
+    N = st.number_input("SPT N-value", 5, 60, 20, key="pile_N")
+    safety = st.number_input("Factor of safety", 2.0, 4.0, 2.5, 0.1, key="pile_fs")
+    if st.button("Calculate Capacity", key="pile_calc"):
+        res = pile_capacity(diameter, length, soil, N, safety)
+        st.metric("Allowable Capacity", f"{res['Q_all_kN']} kN")
+        st.write(f"Ultimate capacity: {res['Q_ult_kN']} kN")
+        st.write(f"Shaft resistance: {res['shaft_kN']} kN, Base: {res['base_kN']} kN")
+
+# ---- PRESTRESSED ----
+with tabs[8]:
+    st.subheader("Prestressed Concrete Beam (Stress Check)")
+    M_ext = st.number_input("External moment (kNm)", 100.0, 5000.0, 500.0, key="pre_M")
+    P = st.number_input("Prestressing force (kN)", 100.0, 5000.0, 1000.0, key="pre_P")
+    e = st.number_input("Eccentricity (m)", 0.0, 1.0, 0.2, 0.01, key="pre_e")
+    A = st.number_input("Cross-sectional area (m²)", 0.05, 2.0, 0.3, 0.01, key="pre_A")
+    I = st.number_input("Second moment of area I (m⁴)", 0.001, 0.2, 0.01, 0.001, key="pre_I")
+    y_top = st.number_input("y_top (m)", 0.1, 1.0, 0.5, 0.01, key="pre_ytop")
+    y_bot = st.number_input("y_bot (m)", 0.1, 1.0, 0.5, 0.01, key="pre_ybot")
+    fck = st.number_input("fck (MPa)", 20, 60, 35, key="pre_fck")
+    if st.button("Check Stresses", key="pre_check"):
+        res = check_prestressed_beam(M_ext, P, e, A, I, y_top, y_bot, fck)
+        if res["pass"]:
+            st.success("✅ Stresses within limits")
+        else:
+            st.error("❌ Stress limit exceeded")
+        st.write(f"Top stress: {res['sigma_top_MPa']} MPa, Bottom: {res['sigma_bot_MPa']} MPa")
+        st.write(f"Allowable compression: {res['sigma_c_allow']} MPa, tension: {res['sigma_t_allow']} MPa")
+
+# ---- EXPORT / REPORT ----
+with tabs[9]:
+    st.subheader("Export Analysis Report (PDF)")
+    st.info("Generate a PDF report of the latest structural analysis results.")
+    if st.button("📄 Generate Report"):
+        # Collect current results from session (example: last check results could be stored)
+        # For demo, create a dummy results dictionary.
+        report_data = {
+            "Project": "Sample",
+            "Beam": "RC Beam check: ...",
+            "Column": "Column check: ...",
+            # In a full app you'd gather actual results.
+        }
+        # You would normally populate with the latest analysis results.
+        # For now, we use the building plan data if available.
+        if st.session_state.active_building:
+            plan = st.session_state.active_building.plan
+            area = calculate_total_area(plan)
+            load = compute_floor_loads(plan,
+                live_load=st.session_state.eng_params["live_load"],
+                slab_thickness=st.session_state.eng_params["slab_thickness"],
+                additional_dead=st.session_state.eng_params["additional_dead"])
+            report_data["Total Floor Area"] = f"{area:.1f} m²"
+            report_data["Design Load"] = f"{load:.1f} kN"
+            integrity = check_structural_integrity(plan)
+            report_data["Max Span"] = f"{integrity['max_span_m']} m"
+            report_data["Suggested Beam"] = integrity["suggested_beam"]
+
+        filename, error = generate_analysis_report(report_data)
+        if error:
+            st.error(error)
+        else:
+            with open(filename, "rb") as f:
+                st.download_button("Download PDF Report", f, file_name=filename, mime="application/pdf")
+            st.success("Report generated!")
