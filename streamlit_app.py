@@ -212,8 +212,13 @@ with st.sidebar:
             st.progress(pct)
 
     st.markdown("---")
-    page = st.radio("Navigate", ["Command Center", "Evolution Chamber", "Structural Analysis", "Archives"])
-
+    # Use page from session if set by quick buttons
+if "page" not in st.session_state:
+    st.session_state.page = "Command Center"
+page = st.radio("Navigate", ["Command Center", "Evolution Chamber", "Structural Analysis", "Archives"],
+                index=["Command Center", "Evolution Chamber", "Structural Analysis", "Archives"].index(st.session_state.page),
+                key="nav_radio")
+st.session_state.page = page
     # Unit system toggle
     unit_choice = st.radio("Unit System", ["metric", "imperial"], index=0, key="unit_radio")
     st.session_state.unit_system = unit_choice
