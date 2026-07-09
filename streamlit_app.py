@@ -548,7 +548,7 @@ if page == "Project Dashboard":
                 </script>
             </body>
             </html>
-            """
+            
                 st.components.v1.html(three_js_html, height=500, scrolling=False)
             else:
                 st.info("3D view requires a building plan.")
